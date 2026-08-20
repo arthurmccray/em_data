@@ -6,7 +6,7 @@
 import sys
 from pathlib import Path
 # Import and run the build script
-from em_database._build_docs import parse_datasets, generate_html_table
+from em_database._build_docs import parse_datasets, generate_html_table, generate_browser_html
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -64,6 +64,14 @@ def build_datasets_html(app, exception):
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open('w', encoding='utf-8') as f:
         f.write(html_output)
+
+    # The widget-styled browser used on the landing page.
+    try:
+        browser_html = generate_browser_html()
+        (Path(app.outdir) / 'datasets_browser.html').write_text(browser_html, encoding='utf-8')
+        print("Wrote datasets_browser.html")
+    except Exception as e:  # pragma: no cover - keep the build alive
+        print(f"Could not build datasets_browser.html: {e}")
 
 def setup(app):
     app.connect('build-finished', build_datasets_html)

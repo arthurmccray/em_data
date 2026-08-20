@@ -2,6 +2,16 @@
 EM-Database
 ===========
 
+A curated, citable collection of electron microscopy datasets — a couple of lines
+of Python from your analysis. Browse below, then copy the snippet to load one.
+
+.. raw:: html
+
+   <style>.bd-article-container { max-width: 100% !important; }</style>
+   <iframe src="datasets_browser.html" title="Browse EM datasets"
+           style="width: 100%; height: 640px; border: 0; border-radius: 12px; margin: 0 0 1.75rem;">
+   </iframe>
+
 This package works as an accumulator for electron microscopy data. The idea is to
 provide a simple API to programmatically access EM data stored in a variety of different
 places.
