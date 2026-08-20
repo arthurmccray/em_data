@@ -553,7 +553,7 @@ _APP_CSS = """
 html, body { margin: 0; padding: 0; }
 body {
   background: var(--emdb-base); color: var(--emdb-text);
-  font-family: var(--emdb-font); font-size: 14px; line-height: 1.5; min-height: 100vh;
+  font-family: var(--emdb-font); font-size: 16px; line-height: 1.55; min-height: 100vh;
 }
 a { color: var(--emdb-blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -575,8 +575,8 @@ a:hover { text-decoration: underline; }
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
 .app-navlink {
-  font-size: 13px; font-weight: 600; color: var(--emdb-subtext);
-  padding: 6px 13px; border-radius: 999px; border: 1px solid transparent;
+  font-size: 14px; font-weight: 600; color: var(--emdb-subtext);
+  padding: 7px 15px; border-radius: 999px; border: 1px solid transparent;
 }
 .app-navlink:hover { color: var(--emdb-text); background: var(--emdb-overlay); text-decoration: none; }
 .app-navlink.active {
@@ -584,7 +584,7 @@ a:hover { text-decoration: underline; }
   border-color: rgba(137, 180, 250, 0.4);
 }
 
-.app-main { max-width: 1180px; margin: 0 auto; padding: 20px 22px 60px; }
+.app-main { max-width: 100%; margin: 0; padding: 20px 40px 60px; }
 
 /* Hero --------------------------------------------------------------- */
 .app-hero { text-align: center; padding: 30px 0 14px; }
@@ -593,7 +593,7 @@ a:hover { text-decoration: underline; }
   background: linear-gradient(135deg, #89b4fa, #cba6f7);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
-.app-hero p { margin: 12px auto 0; max-width: 660px; color: var(--emdb-subtext); font-size: 15px; }
+.app-hero p { margin: 12px auto 0; max-width: 720px; color: var(--emdb-subtext); font-size: 16px; }
 .app-hero code {
   font-family: var(--emdb-mono); background: var(--emdb-crust);
   border: 1px solid var(--emdb-surface0); border-radius: 5px; padding: 1px 6px; color: var(--emdb-text);
@@ -603,12 +603,31 @@ a:hover { text-decoration: underline; }
 # Overrides so the embedded browser fills the docs width (browser.css caps
 # .emdb at 75% for the notebook) and styles the static download link.
 _BROWSER_OVERRIDES = """
-.emdb { max-width: 100%; margin: 8px 0 0; }
-.emdb-body { height: 560px; }
-.emdb-list { min-width: 340px; max-width: 52%; }
-.emdb-dl-link { margin-top: 12px; }
-.emdb-dl-anchor { color: var(--emdb-blue); text-decoration: none; font-size: 12px; font-weight: 600; }
+.emdb { max-width: 100%; margin: 8px 0 0; font-size: 14px; }
+.emdb-diamond { display: none; }
+.emdb-body { height: 600px; }
+.emdb-list { min-width: 360px; max-width: 50%; }
+.emdb-dl-link { margin-top: 14px; }
+.emdb-dl-anchor { color: var(--emdb-blue); text-decoration: none; font-size: 14px; font-weight: 600; }
 .emdb-dl-anchor:hover { text-decoration: underline; }
+/* Bigger, more legible text on the website (the notebook widget stays compact) */
+.emdb-search { font-size: 15px; padding: 10px 13px; }
+.emdb-tab { font-size: 13.5px; padding: 5px 13px; }
+.emdb-count { font-size: 13px; }
+.emdb-group-head { font-size: 11.5px; }
+.emdb-name { font-size: 14.5px; }
+.emdb-meta { font-size: 13px; }
+.emdb-glyph { font-size: 12px; }
+.emdb-d-title { font-size: 20px; }
+.emdb-d-sub { font-size: 13.5px; }
+.emdb-d-desc { font-size: 14.5px; line-height: 1.6; max-width: 760px; }
+.emdb-kv { font-size: 13.5px; }
+.emdb-k { flex-basis: 92px; }
+.emdb-code { font-size: 13px; }
+.emdb-load-label, .emdb-d-status { font-size: 12px; }
+.emdb-copy-btn, .emdb-dl { font-size: 13px; }
+/* Keep the metadata a tidy two-column block instead of sprawling edge to edge */
+.emdb-d-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 820px; gap: 6px 30px; }
 """
 
 # Form styling for the Add Dataset page.
@@ -709,8 +728,7 @@ def _top_nav(active: str = "") -> str:
     )
     return (
         '<nav class="app-nav">'
-        '<a class="app-brand" href="index.html">'
-        '<span class="diamond">&#9670;</span> EM-Database</a>'
+        '<a class="app-brand" href="index.html">EM-Database</a>'
         + items + '</nav>'
     )
 

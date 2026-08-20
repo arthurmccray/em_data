@@ -62,37 +62,35 @@ body {
   color: var(--ctp-text);
 }
 
-/* Top navbar: echo the app header gradient + pill links. */
-.bd-header,
-.bd-header .navbar-header-items,
-.navbar {
-  background: linear-gradient(#1c1c2b, var(--ctp-mantle)) !important;
-  border-bottom: 1px solid var(--ctp-surface0);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
+/* Header: neutralize pydata's navbar shell so the app nav (rendered by the
+ * overridden sections/header.html) IS the visible bar - identical to the
+ * generated app pages. */
+#pst-header.bd-header,
+.bd-header.navbar {
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  display: block !important;
+  min-height: 0 !important;
 }
-.bd-header .navbar-brand,
-.navbar-brand p,
-.navbar-brand .title {
-  color: var(--ctp-text) !important;
-  font-weight: 800;
+.app-nav {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 10px 22px; background: linear-gradient(#1c1c2b, var(--ctp-mantle));
+  border-bottom: 1px solid var(--ctp-surface0); box-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
 }
-.bd-header .nav-link,
-.bd-header .navbar-nav .nav-link {
-  color: var(--ctp-subtext) !important;
-  font-weight: 600;
-  border-radius: 999px;
-  padding: 6px 13px !important;
-  border: 1px solid transparent;
+.app-brand {
+  font-size: 16px; font-weight: 800; letter-spacing: 0.2px; margin-right: auto;
+  display: flex; align-items: center; color: var(--ctp-text);
 }
-.bd-header .nav-link:hover,
-.bd-header .navbar-nav .nav-link:hover {
-  color: var(--ctp-text) !important;
-  background: var(--ctp-overlay);
+.app-brand:hover { text-decoration: none; }
+.app-navlink {
+  font-size: 14px; font-weight: 600; color: var(--ctp-subtext);
+  padding: 7px 15px; border-radius: 999px; border: 1px solid transparent;
 }
-.bd-header .navbar-nav .current > .nav-link,
-.bd-header .nav-link.active {
-  color: var(--ctp-blue) !important;
-  background: rgba(137, 180, 250, 0.14);
+.app-navlink:hover { color: var(--ctp-text); background: var(--ctp-overlay); text-decoration: none; }
+.app-navlink.active {
+  color: var(--ctp-blue); background: rgba(137, 180, 250, 0.14);
   border-color: rgba(137, 180, 250, 0.4);
 }
 
@@ -139,3 +137,58 @@ input[type="search"] {
   color: var(--ctp-text);
   border: 1px solid var(--ctp-surface0);
 }
+
+/* Simple + full width: no sidebars, no breadcrumbs, edge-to-edge content, and a
+ * larger base font so the Examples/API pages match the app pages and use the
+ * space they are given. */
+html { font-size: 17px; }
+.bd-sidebar-primary,
+.bd-sidebar-secondary,
+.bd-breadcrumbs,
+.prev-next-footer { display: none !important; }
+.bd-container,
+.bd-page-width,
+.bd-main .bd-content,
+.bd-main .bd-content .bd-article-container,
+.bd-article-container > article {
+  max-width: 100% !important;
+}
+.bd-main { margin: 0 !important; }
+.bd-article-container { padding: 10px 40px 48px !important; }
+.bd-content, .bd-article-container p, .bd-content li { font-size: 1rem; line-height: 1.6; }
+.bd-article-container h1 { font-size: 2.4rem; }
+/* Gallery: cards stretch to fill the row instead of clustering top-left. */
+.sphx-glr-thumbnails {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  margin: 8px 0 24px;
+}
+.sphx-glr-thumbcontainer {
+  width: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 12px !important;
+}
+.sphx-glr-thumbnail-title { font-size: 1rem !important; }
+
+/* Restyle the (green, monospace) download banners into app pill buttons. */
+.sphx-glr-footer { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-start; margin-top: 20px; }
+.sphx-glr-download { margin: 0 !important; }
+.sphx-glr-download a {
+  background: var(--ctp-surface0) !important;
+  background-image: none !important;
+  color: var(--ctp-blue) !important;
+  border: 1px solid var(--ctp-surface1) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  font-family: inherit !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  padding: 10px 16px !important;
+}
+.sphx-glr-download a:hover { border-color: var(--ctp-blue) !important; background: var(--ctp-overlay) !important; }
+.sphx-glr-signature { opacity: 0.45; font-size: 0.8rem; }
+
+/* Trim the footer to the copyright line only. */
+.bd-footer .bd-footer__inner { justify-content: flex-start; }

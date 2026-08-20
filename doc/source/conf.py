@@ -69,6 +69,12 @@ html_theme_options = {
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "navbar_persistent": [],
     "show_prev_next": False,
+    # Simple: no left sidebar, no right ("Show Source"/on-this-page) sidebar,
+    # no breadcrumbs; a minimal footer.
+    "secondary_sidebar_items": {"**": []},
+    "footer_start": ["copyright"],
+    "footer_center": [],
+    "footer_end": [],
     "icon_links": [
         {
             "name": "GitHub",
@@ -78,8 +84,9 @@ html_theme_options = {
     ],
 }
 
-# No sidebars on the app-style pages (their output is fully replaced anyway).
-html_sidebars = {
+# No left sidebar anywhere - keep every page a single, full-width column.
+html_sidebars = {"**": []}
+_unused_sidebars = {
   "index": [],
   "all_data": [],
   "add_dataset": [],
