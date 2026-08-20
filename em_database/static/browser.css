@@ -205,6 +205,7 @@
   text-transform: uppercase; color: var(--emdb-muted); margin: 12px 0 6px;
 }
 .emdb-field-actions { display: flex; gap: 8px; margin-top: 8px; }
+.emdb-hint { margin-top: 6px; font-size: 11px; color: var(--emdb-subtext); }
 .emdb-status { margin-top: 12px; font-size: 12px; color: var(--emdb-green); font-weight: 600; }
 .emdb-settings-info { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--emdb-surface0); }
 .emdb-searchlist { display: flex; flex-direction: column; gap: 5px; }
