@@ -152,6 +152,21 @@ class Settings(dict):
             self.pop(key, None)
         self.save()  # delta-save drops the now-default key from the file
 
+    def widget(self):
+        """Return an interactive widget for editing the settings (Jupyter)."""
+        from em_database.widget import settings_widget
+        return settings_widget()
+
+    def _repr_mimebundle_(self, **kwargs):
+        """Render as an editable settings widget in Jupyter (falls back to the
+        plain dict repr if anywidget is not installed)."""
+        try:
+            from em_database.widget import settings_widget
+            widget = settings_widget()
+        except Exception:
+            return {"text/plain": repr(dict(self))}
+        return widget._repr_mimebundle_(**kwargs)
+
 
 #: The live settings object (seeded once at import).
 settings = Settings()

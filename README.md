@@ -49,6 +49,9 @@ em_database.settings["data_dir"] = "/big/disk/em_data"  # takes effect now
 em_database.settings.save()                             # remember it next time
 ```
 
+In Jupyter you can also edit them interactively — `display(em_database.settings)`
+renders a panel to set (and save) the data directory directly.
+
 The data directory defaults to `~/em_database`. Convenience helpers wrap the
 common case — `set_data_dir` persists by default:
 

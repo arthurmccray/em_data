@@ -189,6 +189,34 @@ def test_dataset_display_falls_back_without_anywidget(monkeypatch):
     assert "text/plain" in bundle
 
 
+def test_settings_widget_edits_and_persists(tmp_path):
+    pytest.importorskip("anywidget")
+    from em_database import config
+    from em_database.widget import settings_widget
+
+    widget = settings_widget()
+    assert widget.data_dir == em_database.get_data_dir()
+
+    widget._command = {"action": "save", "data_dir": str(tmp_path / "d"), "nonce": 1}
+    assert em_database.get_data_dir() == str(tmp_path / "d")
+    assert config._read_file()["data_dir"] == str(tmp_path / "d")   # persisted
+    assert widget.data_dir == str(tmp_path / "d")
+
+    widget._command = {"action": "session", "data_dir": str(tmp_path / "s"), "nonce": 2}
+    assert em_database.get_data_dir() == str(tmp_path / "s")
+    assert config._read_file()["data_dir"] == str(tmp_path / "d")   # NOT persisted
+
+    widget._command = {"action": "reset", "nonce": 3}
+    assert em_database.get_data_dir() == config._default_data_dir()
+
+
+def test_settings_display_is_a_widget():
+    pytest.importorskip("anywidget")
+    bundle = em_database.settings._repr_mimebundle_()
+    mimes = bundle[0] if isinstance(bundle, tuple) else bundle
+    assert "application/vnd.jupyter.widget-view+json" in mimes
+
+
 def test_notebook_detection_and_colab_enable_are_safe():
     """The frontend helpers must be no-ops off a notebook (e.g. under pytest),
     so nothing breaks when em_database is imported in plain Python."""
