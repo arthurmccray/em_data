@@ -65,6 +65,7 @@ function render({ model, el: root }) {
 
   let nonce = 0;
   let cancelling = false;
+  let downloadingNow = false;
   function cmd(action, extra) {
     model.set("_command", Object.assign({ action, nonce: nonce++ }, extra || {}));
     model.save_changes();
@@ -113,6 +114,7 @@ function render({ model, el: root }) {
     const it = model.get("info") || {};
     const dl = model.get("download") || {};
     const downloading = dl.done != null && !dl.error;
+    downloadingNow = downloading;
     card.innerHTML = "";
 
     card.appendChild(el("div", "emdb-d-title", esc(it.name || "")));
@@ -169,10 +171,31 @@ function render({ model, el: root }) {
     card.appendChild(cols);
   }
 
+  // Update the progress bar/bytes IN PLACE so the ✕ button is never rebuilt
+  // mid-download (rebuilding it under the cursor was eating cancel clicks).
+  function updateProgress(dl) {
+    const box = card.querySelector(".emdb-inline-toast");
+    if (!box || cancelling) { draw(); return; }
+    const pct = dl.total > 0 ? Math.min(100, (100 * dl.done) / dl.total) : null;
+    const fill = box.querySelector(".emdb-fill");
+    if (fill) {
+      if (pct == null) { fill.classList.add("indet"); fill.style.width = "32%"; }
+      else { fill.classList.remove("indet"); fill.style.width = pct + "%"; }
+    }
+    const bytesEl = box.querySelector(".emdb-bytes");
+    if (bytesEl) {
+      bytesEl.textContent = pct == null ? `${fmtMB(dl.done)} MB`
+        : `${fmtMB(dl.done)} / ${fmtMB(dl.total)} MB · ${pct.toFixed(0)}%`;
+    }
+  }
+
   const onInfo = () => { cancelling = false; draw(); };
   const onDownload = () => {
     const dl = model.get("download") || {};
-    if (dl.done == null && !dl.error) cancelling = false;  // cleared -> reset
+    const downloading = dl.done != null && !dl.error;
+    // A byte-progress tick while already downloading: update numbers only.
+    if (downloading && downloadingNow && !cancelling) { updateProgress(dl); return; }
+    if (!downloading) cancelling = false;  // cleared/failed -> reset
     draw();
   };
   model.on("change:info", onInfo);

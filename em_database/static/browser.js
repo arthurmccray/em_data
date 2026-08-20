@@ -317,15 +317,47 @@ function render({ model, el: root }) {
     cmd("download", { name });
   }
 
+  let lastToastSig = "";
   function drawToasts() {
     const downloads = model.get("downloads") || {};
     // Drop cancelling markers for toasts that are already gone.
     for (const token of [...state.cancelling]) {
       if (!(token in downloads)) state.cancelling.delete(token);
     }
+    // Signature of the toast *set* (tokens + cancelling/error state). When only
+    // byte-progress changed, update numbers in place so the ✕ button isn't
+    // rebuilt under the cursor (rebuilding it was eating cancel clicks).
+    const tokens = Object.keys(downloads);
+    const sig = tokens
+      .map((t) => t + (downloads[t].error ? ":e" : state.cancelling.has(t) ? ":c" : ""))
+      .sort().join("|");
+    if (sig === lastToastSig) {
+      for (const t of tokens) {
+        if (!downloads[t].error && !state.cancelling.has(t)) updateToastProgress(t, downloads[t]);
+      }
+      return;
+    }
+    lastToastSig = sig;
     toastRoot.innerHTML = "";
     for (const [token, dl] of Object.entries(downloads)) {
       toastRoot.appendChild(dl.error ? errorToast(token, dl) : progressToast(token, dl));
+    }
+  }
+
+  function updateToastProgress(token, dl) {
+    let card = null;
+    for (const c of toastRoot.children) { if (c.dataset.token === token) { card = c; break; } }
+    if (!card) return;
+    const pct = dl.total > 0 ? Math.min(100, (100 * dl.done) / dl.total) : null;
+    const fill = card.querySelector(".emdb-fill");
+    if (fill) {
+      if (pct == null) { fill.classList.add("indet"); fill.style.width = "32%"; }
+      else { fill.classList.remove("indet"); fill.style.width = pct + "%"; }
+    }
+    const bytes = card.querySelector(".emdb-bytes");
+    if (bytes) {
+      bytes.textContent = pct == null ? `${fmtMB(dl.done)} MB`
+        : `${fmtMB(dl.done)} / ${fmtMB(dl.total)} MB · ${pct.toFixed(0)}%`;
     }
   }
 
@@ -333,6 +365,7 @@ function render({ model, el: root }) {
     const cancelling = state.cancelling.has(token);
     const pct = dl.total > 0 ? Math.min(100, (100 * dl.done) / dl.total) : null;
     const card = el("div", "emdb-toast" + (cancelling ? " cancelling" : ""));
+    card.dataset.token = token;
     const bar = pct == null || cancelling
       ? `<div class="emdb-fill indet" style="width:32%"></div>`
       : `<div class="emdb-fill" style="width:${pct}%"></div>`;

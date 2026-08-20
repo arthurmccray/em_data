@@ -365,3 +365,132 @@ def browse(**kwargs):
                 "`pip install em-database[widget]` (or `pip install anywidget`)."
             ) from error
     return _browser_class(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Global toasts: a bare ``ds.download()`` in Jupyter pops a cancelable toast
+# ---------------------------------------------------------------------------
+
+def _make_toasts_class():
+    """Build the singleton ``DownloadToasts`` widget, importing anywidget lazily."""
+    import anywidget
+    import traitlets
+
+    class DownloadToasts(anywidget.AnyWidget):
+        """An invisible anchor that floats download toasts at the viewport corner."""
+
+        _esm = _STATIC / "toasts.js"
+        _css = _STATIC / "browser.css"
+
+        downloads = traitlets.Dict().tag(sync=True)
+        _command = traitlets.Dict().tag(sync=True)
+
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self._lock = threading.RLock()
+            self._cancels: dict[str, threading.Event] = {}
+            self._labels: dict[str, str] = {}
+            self._counter = itertools.count()
+            self.observe(self._on_command, names="_command")
+
+        def _on_command(self, change):
+            command = change.get("new") or {}
+            action = command.get("action")
+            token = str(command.get("token", ""))
+            if action == "cancel":
+                with self._lock:
+                    event = self._cancels.get(token)
+                if event is not None:
+                    event.set()
+            elif action == "dismiss":
+                self._clear_progress(token)
+
+        def begin(self, label):
+            """Register a new download; return its (monitor, token)."""
+            token = f"{label}-{next(self._counter)}"
+            cancel = threading.Event()
+            with self._lock:
+                self._cancels[token] = cancel
+                self._labels[token] = label
+            self._set_progress(token, label, 0, 0)
+            return _WidgetProgress(self, token, label, cancel), token
+
+        def finish(self, token, future):
+            with self._lock:
+                self._cancels.pop(token, None)
+                label = self._labels.pop(token, token)
+            error = future.exception() if future is not None else None
+            if error is not None and not isinstance(error, DownloadCancelled):
+                self._set_error(token, label, str(error))
+            else:
+                self._clear_progress(token)
+
+        def _set_progress(self, token, label, done, total):
+            with self._lock:
+                downloads = dict(self.downloads)
+                downloads[token] = {"label": label, "done": int(done), "total": int(total)}
+                self.downloads = downloads
+
+        def _clear_progress(self, token):
+            with self._lock:
+                downloads = dict(self.downloads)
+                if downloads.pop(token, None) is not None:
+                    self.downloads = downloads
+
+        def _set_error(self, token, label, message):
+            with self._lock:
+                downloads = dict(self.downloads)
+                downloads[token] = {"label": label, "error": message}
+                self.downloads = downloads
+
+    return DownloadToasts
+
+
+_toasts = None
+_toasts_class = None
+
+
+def _in_jupyter():
+    """True only in a Jupyter kernel (where widgets render), not plain Python."""
+    try:
+        from IPython import get_ipython
+        ip = get_ipython()
+        return ip is not None and ip.__class__.__name__ == "ZMQInteractiveShell"
+    except Exception:
+        return False
+
+
+def _get_toasts():
+    """Return the singleton toasts widget, displaying it once, or None if a
+    toast can't be shown (not in Jupyter, or anywidget missing)."""
+    global _toasts, _toasts_class
+    if not _in_jupyter():
+        return None
+    _quiet_pooch()
+    try:
+        if _toasts_class is None:
+            _toasts_class = _make_toasts_class()
+    except Exception:
+        return None
+    if _toasts is None:
+        try:
+            widget = _toasts_class()
+            from IPython.display import display
+            display(widget)
+            _toasts = widget
+        except Exception:
+            _toasts = None
+            return None
+    return _toasts
+
+
+def _attach_toast(label):
+    """If a toast can be shown, return (monitor, finish_callback) for a new
+    download; otherwise (None, None). The monitor is a pooch progress object
+    that also honors cancellation; finish_callback(future) clears the toast.
+    """
+    toasts = _get_toasts()
+    if toasts is None:
+        return None, None
+    monitor, token = toasts.begin(label)
+    return monitor, (lambda future, tk=token, tw=toasts: tw.finish(tk, future))

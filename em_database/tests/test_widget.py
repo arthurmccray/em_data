@@ -189,6 +189,40 @@ def test_dataset_display_falls_back_without_anywidget(monkeypatch):
     assert "text/plain" in bundle
 
 
+def test_attach_toast_is_noop_outside_jupyter():
+    """Outside a Jupyter kernel there is no toast, so a bare download is
+    unaffected."""
+    import em_database.widget as widget_mod
+    monitor, finish = widget_mod._attach_toast("Foo")
+    assert monitor is None and finish is None
+
+
+def test_download_toasts_plumbing():
+    """The global toasts widget tracks a download and clears/errors/cancels it."""
+    pytest.importorskip("anywidget")
+    from concurrent.futures import Future
+
+    import em_database.widget as widget_mod
+
+    toasts = widget_mod._make_toasts_class()()
+
+    monitor, token = toasts.begin("Foo")
+    assert toasts.downloads[token] == {"label": "Foo", "done": 0, "total": 0}
+
+    ok = Future(); ok.set_result("path")
+    toasts.finish(token, ok)                       # success -> toast cleared
+    assert token not in toasts.downloads
+
+    monitor2, token2 = toasts.begin("Bar")         # cancel sets the event
+    toasts._command = {"action": "cancel", "token": token2, "nonce": 1}
+    assert monitor2._cancel.is_set()
+
+    bad = Future(); bad.set_exception(RuntimeError("boom"))
+    _, token3 = toasts.begin("Baz")
+    toasts.finish(token3, bad)                      # failure -> error toast
+    assert toasts.downloads[token3]["error"] == "boom"
+
+
 @pytest.mark.slow
 def test_widget_download_end_to_end(tmp_path, monkeypatch):
     monkeypatch.setenv("EM_DATABASE_DATA_DIR", str(tmp_path))

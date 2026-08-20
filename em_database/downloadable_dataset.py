@@ -177,9 +177,21 @@ class DownloadableDataset:
         if not background:
             return self._retrieve(destination, progressbar, chunk_size)
         target = os.path.join(self._resolve_destination(destination), self.file)
+        # In Jupyter (with the widget installed) a background download pops a
+        # cancelable toast; the toast's monitor replaces the plain progress bar.
+        monitor = finish = None
+        if progressbar:
+            try:
+                from em_database.widget import _attach_toast
+                monitor, finish = _attach_toast(type(self).__name__)
+            except Exception:
+                monitor = finish = None
+        progress = monitor if monitor is not None else progressbar
         future = _get_executor().submit(
-            self._retrieve, destination, progressbar, chunk_size
+            self._retrieve, destination, progress, chunk_size
         )
+        if finish is not None:
+            future.add_done_callback(finish)
         return DownloadFuture(target)._attach(future)
 
     def _retrieve(self,
