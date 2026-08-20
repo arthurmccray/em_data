@@ -34,46 +34,47 @@ function render({ model, el: root }) {
     // Data directory field
     const field = el("div", "emdb-field");
     field.appendChild(el("div", "emdb-field-label", "Data directory"));
+    // Input + Browse on one line (Browse to the right of the path field).
+    const row = el("div", "emdb-field-row");
     const input = el("input", "emdb-search");
     input.type = "text";
     input.value = model.get("data_dir") || "";
     input.placeholder = model.get("default_dir") || "";
     input.spellcheck = false;
-    field.appendChild(input);
+    row.appendChild(input);
+    const browse = el("button", "emdb-browse", "Browse…");
+    browse.title = "Pick any file inside the folder you want; its folder is used";
+    row.appendChild(browse);
+    field.appendChild(row);
 
-    // Client-side folder picker: a hidden directory <input>. The browser only
-    // exposes the absolute path on desktop/Electron (File.path); a plain browser
-    // hides it, so we fall back to asking the user to type it.
+    // Client-side picker: a plain file <input> (a normal "Open" dialog, no
+    // "upload" prompt). We use the selected file's parent as the directory. The
+    // absolute path is available on desktop/Electron (File.path); a plain
+    // browser hides it, so we fall back to asking the user to type it.
     const picker = el("input");
     picker.type = "file";
-    picker.setAttribute("webkitdirectory", "");
-    picker.setAttribute("directory", "");
     picker.style.display = "none";
     field.appendChild(picker);
     const hint = el("div", "emdb-hint");
     field.appendChild(hint);
 
+    browse.addEventListener("click", function () { picker.click(); });
     picker.addEventListener("change", function () {
-      const files = picker.files;
-      if (files && files.length) {
-        const f = files[0];
-        const rel = f.webkitRelativePath || f.name;
+      const f = picker.files && picker.files[0];
+      if (f) {
         if (f.path) {  // absolute path available (desktop/Electron)
-          input.value = f.path.slice(0, f.path.length - rel.length) + rel.split("/")[0];
-          hint.textContent = "Selected " + input.value + " — click Save to keep it.";
+          const dir = f.path.slice(0, f.path.length - f.name.length).replace(/[\\/]+$/, "");
+          input.value = dir;
+          hint.textContent = "Selected " + dir + " — click Save to keep it.";
         } else {
           hint.textContent =
-            "This browser can’t share the folder’s full path — type it above instead.";
+            "This browser can’t share the folder’s path — type it above instead.";
         }
       }
-      picker.value = "";  // let the same folder be picked again
+      picker.value = "";  // let the same file be picked again
     });
 
     const actions = el("div", "emdb-field-actions");
-    const browse = el("button", "emdb-copy-btn", "Browse…");
-    browse.title = "Pick a folder";
-    browse.addEventListener("click", function () { picker.click(); });
-    actions.appendChild(browse);
     const save = el("button", "emdb-dl", "Save");
     save.title = "Set and remember across sessions";
     save.addEventListener("click", function () { cmd("save", { data_dir: input.value.trim() }); });
