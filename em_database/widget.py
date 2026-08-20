@@ -48,6 +48,32 @@ def _quiet_pooch():
         pass
 
 
+_colab_enabled = False
+
+
+def _enable_colab_widgets():
+    """On Google Colab, third-party (anywidget) widgets render only once the
+    custom widget manager is enabled - do it once, automatically. No-op anywhere
+    else, so widgets work out of the box on Colab and Jupyter alike.
+    """
+    global _colab_enabled
+    if _colab_enabled:
+        return
+    try:
+        from google.colab import output  # importable only on Colab
+        output.enable_custom_widget_manager()
+    except Exception:
+        pass
+    finally:
+        _colab_enabled = True
+
+
+def _prepare_frontend():
+    """Everything that should happen before a widget renders."""
+    _quiet_pooch()
+    _enable_colab_widgets()
+
+
 class DownloadCancelled(Exception):
     """Raised inside pooch's stream when the user cancels a download.
 
@@ -334,7 +360,7 @@ def card(dataset):
     This backs ``display(dataset)`` / a dataset being the last line in a cell.
     Requires anywidget (``pip install em-database[widget]``).
     """
-    _quiet_pooch()
+    _prepare_frontend()
     global _card_class
     if _card_class is None:
         try:
@@ -354,7 +380,7 @@ def browse(**kwargs):
     every dataset grouped by technique, shows which are downloaded, reveals full
     metadata on hover, and downloads on click with a live progress toast.
     """
-    _quiet_pooch()
+    _prepare_frontend()
     global _browser_class
     if _browser_class is None:
         try:
@@ -370,6 +396,78 @@ def browse(**kwargs):
 # ---------------------------------------------------------------------------
 # Global toasts: a bare ``ds.download()`` in Jupyter pops a cancelable toast
 # ---------------------------------------------------------------------------
+
+def _make_settings_class():
+    """Build the ``SettingsWidget`` class, importing anywidget lazily."""
+    import anywidget
+    import traitlets
+
+    from em_database import config
+
+    class SettingsWidget(anywidget.AnyWidget):
+        """An editable panel for em_database's settings (the data directory)."""
+
+        _esm = _STATIC / "settings.js"
+        _css = _STATIC / "browser.css"
+
+        data_dir = traitlets.Unicode().tag(sync=True)
+        default_dir = traitlets.Unicode().tag(sync=True)
+        config_path = traitlets.Unicode().tag(sync=True)
+        search_dirs = traitlets.List().tag(sync=True)
+        status = traitlets.Unicode().tag(sync=True)
+        _command = traitlets.Dict().tag(sync=True)
+
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self._refresh()
+            self.observe(self._on_command, names="_command")
+
+        def _refresh(self, status=""):
+            self.data_dir = config.data_dir()
+            self.default_dir = config._default_data_dir()
+            self.config_path = str(config.config_path())
+            self.search_dirs = list(config.data_search_dirs())
+            self.status = status
+
+        def _on_command(self, change):
+            command = change.get("new") or {}
+            action = command.get("action")
+            value = str(command.get("data_dir", "")).strip()
+            if action == "save" and value:
+                config.settings["data_dir"] = value
+                config.settings.save()
+                self._refresh(status=f"Saved to {config.config_path()}")
+            elif action == "session" and value:
+                config.settings["data_dir"] = value
+                self._refresh(status="Set for this session (not saved)")
+            elif action == "reset":
+                config.settings.reset("data_dir")
+                self._refresh(status="Reset to the default location")
+
+    return SettingsWidget
+
+
+_settings_class = None
+
+
+def settings_widget():
+    """Return an interactive widget for editing em_database's settings (Jupyter).
+
+    Backs ``display(em_database.settings)`` and ``em_database.settings.widget()``.
+    Requires anywidget (``pip install em-database[widget]``).
+    """
+    _prepare_frontend()
+    global _settings_class
+    if _settings_class is None:
+        try:
+            _settings_class = _make_settings_class()
+        except ImportError as error:
+            raise ImportError(
+                "The settings widget needs anywidget. Install it with "
+                "`pip install em-database[widget]` (or `pip install anywidget`)."
+            ) from error
+    return _settings_class()
+
 
 def _make_toasts_class():
     """Build the singleton ``DownloadToasts`` widget, importing anywidget lazily."""
@@ -450,19 +548,24 @@ _toasts = None
 _toasts_class = None
 
 
-def _in_jupyter():
-    """True only in a Jupyter kernel (where widgets render), not plain Python."""
+def _in_notebook():
+    """True in a notebook frontend that can render widgets (Jupyter, Colab,
+    VS Code, ...), False in plain Python or a terminal IPython."""
     try:
         from IPython import get_ipython
         ip = get_ipython()
-        return ip is not None and ip.__class__.__name__ == "ZMQInteractiveShell"
+        if ip is None:
+            return False
+        # ZMQInteractiveShell = Jupyter; "Shell" = Colab; exclude only the
+        # terminal shell, which cannot render widgets.
+        return ip.__class__.__name__ != "TerminalInteractiveShell"
     except Exception:
         return False
 
 
 def _get_toasts():
     """Return the singleton toasts widget, or None if a toast can't be shown
-    (not in Jupyter, or anywidget missing).
+    (not in a notebook, or anywidget missing).
 
     The widget is re-displayed on every call so it re-anchors in the current
     cell: a widget view is tied to a cell's output, so clearing or re-running
@@ -471,9 +574,9 @@ def _get_toasts():
     never duplicates the toasts.
     """
     global _toasts, _toasts_class
-    if not _in_jupyter():
+    if not _in_notebook():
         return None
-    _quiet_pooch()
+    _prepare_frontend()
     try:
         if _toasts_class is None:
             _toasts_class = _make_toasts_class()

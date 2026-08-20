@@ -129,8 +129,8 @@ class DownloadableDataset:
     def _resolve_destination(destination: str | None) -> str:
         """Return the directory the dataset should live in."""
         if destination is None:
-            return os.environ.get("EM_DATABASE_DATA_DIR",
-                                  os.path.join(os.path.expanduser("~"), "em_database"))
+            from em_database import config
+            return config.data_dir()
         return destination
 
     def download(self,
@@ -176,7 +176,12 @@ class DownloadableDataset:
         """
         if not background:
             return self._retrieve(destination, progressbar, chunk_size)
-        target = os.path.join(self._resolve_destination(destination), self.file)
+        # Resolve where the file will end up: an existing shared/user copy if it
+        # is already present, otherwise the user's download location.
+        if destination is not None:
+            target = os.path.join(destination, self.file)
+        else:
+            target = self.filepath() or os.path.join(self._resolve_destination(None), self.file)
         # In Jupyter (with the widget installed) a background download pops a
         # cancelable toast; the toast's monitor replaces the plain progress bar.
         monitor = finish = None
@@ -198,14 +203,25 @@ class DownloadableDataset:
                   destination: str | None = None,
                   progressbar: bool = True,
                   chunk_size: int = 4096) -> str:
-        """Fetch the file with pooch and return its local path (blocking)."""
+        """Fetch the file and return its local path (blocking).
+
+        With no explicit destination, an existing system-wide/shared copy is used
+        as-is (never re-downloaded); otherwise pooch downloads into the user's
+        data directory.
+        """
         if progressbar:
             try:
                 import tqdm  # noqa: F401
             except ImportError:
                 print("`tqdm` is not installed, progress bar will be disabled.")
                 progressbar = False
-        destination = self._resolve_destination(destination)
+        if destination is None:
+            shared = self._find_shared()
+            if shared is not None:
+                return shared
+            destination = self._resolve_destination(None)
+        else:
+            destination = self._resolve_destination(destination)
         # Instantiate an Http downloader with a custom user agent
         headers = {"User-Agent": "em_database (https://github.com/CSSFrancis/em_data)"}
         downloader = pooch.HTTPDownloader(progressbar=progressbar,
@@ -220,17 +236,26 @@ class DownloadableDataset:
         )
         return filepath
 
-    def filepath(self) -> str:
-        """ Return the local file path of the dataset if downloaded.
+    def _find_shared(self) -> str | None:
+        """Path to an existing copy in a shared/system data dir, or None."""
+        from em_database import config
+        for directory in config.shared_data_dirs():
+            candidate = os.path.join(directory, self.file)
+            if os.path.exists(candidate):
+                return candidate
+        return None
 
-        If not downloaded return None. """
-        destination = os.environ.get("EM_DATABASE_DATA_DIR",
-                                     os.path.join(os.path.expanduser("~"), "em_database"))
-        filepath = os.path.join(destination, self.file)
-        if os.path.exists(filepath):
-            return filepath
-        else:
-            return None
+    def filepath(self) -> str:
+        """ Return the local file path of the dataset if present.
+
+        Looks in the shared/system data locations first, then the user's data
+        directory. Returns None if the dataset is not downloaded anywhere. """
+        from em_database import config
+        for directory in config.data_search_dirs():
+            candidate = os.path.join(directory, self.file)
+            if os.path.exists(candidate):
+                return candidate
+        return None
 
     def delete(self, destination: str | None = None) -> bool:
         """ Delete the downloaded file if it is present.

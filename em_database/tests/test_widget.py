@@ -42,8 +42,8 @@ def test_catalogue_entry_has_expected_fields():
     assert isinstance(row["downloaded"], bool)
 
 
-def test_catalogue_downloaded_flag_tracks_the_file(tmp_path, monkeypatch):
-    monkeypatch.setenv("EM_DATABASE_DATA_DIR", str(tmp_path))
+def test_catalogue_downloaded_flag_tracks_the_file(tmp_path):
+    em_database.set_data_dir(str(tmp_path), persist=False)
     ds = catalogue.resolve(TINY_DATASET)
     assert catalogue.entry(TINY_DATASET, ds)["downloaded"] is False
     (tmp_path / ds.file).write_bytes(b"x")  # pretend it is downloaded
@@ -121,8 +121,8 @@ def test_search_blob_includes_authors_and_affiliation():
     assert "4d-stem" in row["search"]            # technique
 
 
-def test_delete_removes_downloaded_file(tmp_path, monkeypatch):
-    monkeypatch.setenv("EM_DATABASE_DATA_DIR", str(tmp_path))
+def test_delete_removes_downloaded_file(tmp_path):
+    em_database.set_data_dir(str(tmp_path), persist=False)
     ds = catalogue.resolve(TINY_DATASET)
     (tmp_path / ds.file).write_bytes(b"x")
     assert ds.filepath() is not None
@@ -189,6 +189,43 @@ def test_dataset_display_falls_back_without_anywidget(monkeypatch):
     assert "text/plain" in bundle
 
 
+def test_settings_widget_edits_and_persists(tmp_path):
+    pytest.importorskip("anywidget")
+    from em_database import config
+    from em_database.widget import settings_widget
+
+    widget = settings_widget()
+    assert widget.data_dir == em_database.get_data_dir()
+
+    widget._command = {"action": "save", "data_dir": str(tmp_path / "d"), "nonce": 1}
+    assert em_database.get_data_dir() == str(tmp_path / "d")
+    assert config._read_file()["data_dir"] == str(tmp_path / "d")   # persisted
+    assert widget.data_dir == str(tmp_path / "d")
+
+    widget._command = {"action": "session", "data_dir": str(tmp_path / "s"), "nonce": 2}
+    assert em_database.get_data_dir() == str(tmp_path / "s")
+    assert config._read_file()["data_dir"] == str(tmp_path / "d")   # NOT persisted
+
+    widget._command = {"action": "reset", "nonce": 3}
+    assert em_database.get_data_dir() == config._default_data_dir()
+
+
+def test_settings_display_is_a_widget():
+    pytest.importorskip("anywidget")
+    bundle = em_database.settings._repr_mimebundle_()
+    mimes = bundle[0] if isinstance(bundle, tuple) else bundle
+    assert "application/vnd.jupyter.widget-view+json" in mimes
+
+
+def test_notebook_detection_and_colab_enable_are_safe():
+    """The frontend helpers must be no-ops off a notebook (e.g. under pytest),
+    so nothing breaks when em_database is imported in plain Python."""
+    import em_database.widget as widget_mod
+    assert widget_mod._in_notebook() is False
+    widget_mod._enable_colab_widgets()  # must not raise when not on Colab
+    widget_mod._prepare_frontend()      # idempotent, safe
+
+
 def test_attach_toast_is_noop_outside_jupyter():
     """Outside a Jupyter kernel there is no toast, so a bare download is
     unaffected."""
@@ -224,8 +261,8 @@ def test_download_toasts_plumbing():
 
 
 @pytest.mark.slow
-def test_widget_download_end_to_end(tmp_path, monkeypatch):
-    monkeypatch.setenv("EM_DATABASE_DATA_DIR", str(tmp_path))
+def test_widget_download_end_to_end(tmp_path):
+    em_database.set_data_dir(str(tmp_path), persist=False)
     widget = _browser()
     future = widget._start_download(TINY_DATASET)
     assert future is not None

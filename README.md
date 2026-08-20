@@ -35,16 +35,48 @@ Call `path.done()` to check progress without blocking, or `path.result()` to wai
 explicitly.  Pass `download(background=False)` to block and get the path as a plain
 string instead.
 
-The download location defaults to `~/em_database` and can be changed either for the
-session or through the `EM_DATABASE_DATA_DIR` environment variable:
+## Settings
+
+Configuration lives in a live, matplotlib-`rcParams`-style object,
+`em_database.settings`, seeded at import from `~/.em_database/settings.yaml`.
+Change it in memory for an immediate effect, and persist it to remember the
+choice across sessions:
 
 ```python
 import em_database
 
-em_database.set_data_dir("/path/to/somewhere")
-em_database.get_data_dir()
-em_database.reset_data_dir()
+em_database.settings["data_dir"] = "/big/disk/em_data"  # takes effect now
+em_database.settings.save()                             # remember it next time
 ```
+
+In Jupyter you can also edit them interactively — `display(em_database.settings)`
+renders a panel to set (and save) the data directory directly.
+
+The data directory defaults to `~/em_database`. Convenience helpers wrap the
+common case — `set_data_dir` persists by default:
+
+```python
+em_database.get_data_dir()                       # current location
+em_database.set_data_dir("/big/disk/em_data")    # set + persist
+em_database.set_data_dir("/scratch", persist=False)  # one-off, in-memory only
+em_database.reset_data_dir()                     # back to the default, forget the choice
+```
+
+No environment variable is needed. Only values you explicitly set are written to
+the file, so the default is never frozen in — it keeps being obeyed even if it
+changes. For a one-off override (e.g. CI) the legacy `EM_DATABASE_DATA_DIR` is
+still honored, and `EM_DATABASE_CONFIG` relocates the settings file.
+
+### Shared, system-wide data
+
+Datasets can be installed once for every user. `download()` and `filepath()`
+look in the shared/system locations **first**, then your own data directory, and
+only download (into your directory) if the file is nowhere to be found — so a
+shared copy is reused instead of refetched. Shared locations come from the
+`EM_DATABASE_SHARED_DIR` environment variable (an `os.pathsep`-separated list), a
+`shared_data_dirs` list in your settings, or a system config file
+(`/etc/em_database/settings.yaml`, or `%PROGRAMDATA%\em_database\settings.yaml`
+on Windows).
 
 ## Adding a dataset
 
