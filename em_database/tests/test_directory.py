@@ -41,10 +41,10 @@ def test_saving_to_configured_dir(tmp_path):
     """A dataset downloads into whatever data dir is configured."""
     em_database.set_data_dir(str(tmp_path))
     dataset = getattr(data, TINY_DATASET)()
-    dest = dataset.download(progressbar=False)
+    dest = dataset.download(progressbar=False, background=False)
     assert os.path.exists(os.path.join(str(tmp_path), dataset.file))
     # a second download must reuse the file rather than refetch it
-    assert dataset.download(progressbar=False) == dest
+    assert dataset.download(progressbar=False, background=False) == dest
 
 
 def test_saving_to_explicit_dir(tmp_path):
@@ -52,7 +52,7 @@ def test_saving_to_explicit_dir(tmp_path):
     other = tmp_path / "elsewhere"
     em_database.set_data_dir(str(tmp_path / "configured"))
     dataset = getattr(data, TINY_DATASET)()
-    dest = dataset.download(destination=str(other), progressbar=False)
+    dest = dataset.download(destination=str(other), progressbar=False, background=False)
     assert "elsewhere" in dest
     assert (other / dataset.file).exists()
 
@@ -62,5 +62,5 @@ def test_filepath_reports_missing_and_present(tmp_path):
     em_database.set_data_dir(str(tmp_path))
     dataset = getattr(data, TINY_DATASET)()
     assert dataset.filepath() is None
-    dataset.download(progressbar=False)
+    dataset.download(progressbar=False, background=False)
     assert dataset.filepath() == os.path.join(str(tmp_path), dataset.file)
