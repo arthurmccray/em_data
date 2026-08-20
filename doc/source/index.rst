@@ -1,10 +1,23 @@
+:html_theme.sidebar_secondary.remove:
+
 .. toctree::
-  :maxdepth: 1
   :hidden:
 
-  Introduction <intro.rst>
-  Reference <reference/index>
-  Datasets <datasets.rst>
   Examples <examples/index.rst>
+  API <reference/index>
+  All Data <all_data.rst>
+  Add Dataset <add_dataset.rst>
 
-.. include:: intro.rst
+EM-Database
+===========
+
+A curated, citable collection of electron microscopy datasets — a couple of
+lines of Python from your analysis.
+
+.. note::
+
+   This landing page is rendered as a self-contained, widget-styled app during
+   the build (see ``build-finished`` in ``conf.py``); this reStructuredText is a
+   fallback that only shows if that generation step fails. Browse the datasets on
+   the :doc:`All Data <all_data>` page, or add one on :doc:`Add Dataset
+   <add_dataset>`.
