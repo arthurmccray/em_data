@@ -1,17 +1,10 @@
 ### Example datasets ###
 import os
+from em_database.config import settings
 from em_database.downloadable_dataset import DownloadableDataset
 from em_database._create_stubs import build_docstring
 from em_database import data
 __all__ = []
-
-
-if "EM_DATABASE_DATA_DIR" not in os.environ:
-    # set the default dir to User's home directory + "/emdata"
-    os.environ["EM_DATABASE_DATA_DIR"] = os.path.join(
-        os.path.expanduser("~"),"em_database"
-    )
-
 
 
 def get_data_dir():
@@ -23,9 +16,10 @@ def get_data_dir():
     str
         Path to the example datasets directory.
     """
-    return  os.environ["EM_DATABASE_DATA_DIR"]
+    from em_database import config
+    return config.data_dir()
 
-def set_data_dir(path: str):
+def set_data_dir(path: str, persist: bool = True):
     """
     Set the directory where example datasets are stored.
 
@@ -33,16 +27,31 @@ def set_data_dir(path: str):
     ----------
     path : str
         Path to the desired example datasets directory.
+    persist : bool, optional
+        If True (the default), remember the choice across sessions by writing it
+        to the settings file. Pass False for a one-off, in-memory change.
     """
-    os.environ["EM_DATABASE_DATA_DIR"] = path
+    settings["data_dir"] = str(path)
+    if persist:
+        settings.save()
 
 def reset_data_dir():
     """
-    Reset the example datasets directory to the default location.
+    Reset the example datasets directory to the default location, clearing any
+    saved choice.
     """
-    os.environ["EM_DATABASE_DATA_DIR"] = os.path.join(
-        os.path.expanduser("~"),"em_database"
-    )
+    settings.reset("data_dir")
+
+
+def get_setting(key: str, default=None):
+    """Read a value from :data:`em_database.settings`."""
+    return settings.get(key, default)
+
+def set_setting(key: str, value, persist: bool = True):
+    """Set a value in :data:`em_database.settings`, persisting it by default."""
+    settings[key] = value
+    if persist:
+        settings.save()
 
 
 def browse(**kwargs):
@@ -60,7 +69,8 @@ def browse(**kwargs):
     return _browse(**kwargs)
 
 
-__all__ =  ['get_data_dir', 'set_data_dir', 'reset_data_dir', 'browse', "data"]
+__all__ =  ['get_data_dir', 'set_data_dir', 'reset_data_dir',
+            'get_setting', 'set_setting', 'settings', 'browse', "data"]
 
 
 # Let ``display(em_database)`` render the browser. Reassigning the module's

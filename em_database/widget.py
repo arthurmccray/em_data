@@ -48,6 +48,32 @@ def _quiet_pooch():
         pass
 
 
+_colab_enabled = False
+
+
+def _enable_colab_widgets():
+    """On Google Colab, third-party (anywidget) widgets render only once the
+    custom widget manager is enabled - do it once, automatically. No-op anywhere
+    else, so widgets work out of the box on Colab and Jupyter alike.
+    """
+    global _colab_enabled
+    if _colab_enabled:
+        return
+    try:
+        from google.colab import output  # importable only on Colab
+        output.enable_custom_widget_manager()
+    except Exception:
+        pass
+    finally:
+        _colab_enabled = True
+
+
+def _prepare_frontend():
+    """Everything that should happen before a widget renders."""
+    _quiet_pooch()
+    _enable_colab_widgets()
+
+
 class DownloadCancelled(Exception):
     """Raised inside pooch's stream when the user cancels a download.
 
@@ -334,7 +360,7 @@ def card(dataset):
     This backs ``display(dataset)`` / a dataset being the last line in a cell.
     Requires anywidget (``pip install em-database[widget]``).
     """
-    _quiet_pooch()
+    _prepare_frontend()
     global _card_class
     if _card_class is None:
         try:
@@ -354,7 +380,7 @@ def browse(**kwargs):
     every dataset grouped by technique, shows which are downloaded, reveals full
     metadata on hover, and downloads on click with a live progress toast.
     """
-    _quiet_pooch()
+    _prepare_frontend()
     global _browser_class
     if _browser_class is None:
         try:
@@ -450,19 +476,24 @@ _toasts = None
 _toasts_class = None
 
 
-def _in_jupyter():
-    """True only in a Jupyter kernel (where widgets render), not plain Python."""
+def _in_notebook():
+    """True in a notebook frontend that can render widgets (Jupyter, Colab,
+    VS Code, ...), False in plain Python or a terminal IPython."""
     try:
         from IPython import get_ipython
         ip = get_ipython()
-        return ip is not None and ip.__class__.__name__ == "ZMQInteractiveShell"
+        if ip is None:
+            return False
+        # ZMQInteractiveShell = Jupyter; "Shell" = Colab; exclude only the
+        # terminal shell, which cannot render widgets.
+        return ip.__class__.__name__ != "TerminalInteractiveShell"
     except Exception:
         return False
 
 
 def _get_toasts():
     """Return the singleton toasts widget, or None if a toast can't be shown
-    (not in Jupyter, or anywidget missing).
+    (not in a notebook, or anywidget missing).
 
     The widget is re-displayed on every call so it re-anchors in the current
     cell: a widget view is tied to a cell's output, so clearing or re-running
@@ -471,9 +502,9 @@ def _get_toasts():
     never duplicates the toasts.
     """
     global _toasts, _toasts_class
-    if not _in_jupyter():
+    if not _in_notebook():
         return None
-    _quiet_pooch()
+    _prepare_frontend()
     try:
         if _toasts_class is None:
             _toasts_class = _make_toasts_class()
