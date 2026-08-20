@@ -3,6 +3,12 @@
 // Backs the toasts that a bare `ds.download()` pops up in Jupyter. The widget
 // itself is an invisible anchor; the toasts live on <body> (position: fixed) so
 // they float over the notebook regardless of which cell started the download.
+//
+// The widget is re-displayed on every download (so it re-anchors after a cell
+// is cleared/re-run), which means several views of the same model can be live
+// at once. They therefore SHARE one body-level toast root (by id), one
+// "cancelling" set, and one render signature, so they never duplicate or
+// clobber each other; the root is ref-counted and removed with the last view.
 
 const MB = 1e6;
 
@@ -28,31 +34,38 @@ function el(tag, cls, html) {
 
 function render({ model, el: root }) {
   root.style.display = "none";  // the widget is just an anchor
-  const toastRoot = el("div", "emdb-toast-root");
-  document.body.appendChild(toastRoot);
 
-  const cancelling = new Set();
+  // One shared toast root for every live view of the (singleton) model.
+  let toastRoot = document.getElementById("emdb-global-toast-root");
+  if (!toastRoot) {
+    toastRoot = el("div", "emdb-toast-root");
+    toastRoot.id = "emdb-global-toast-root";
+    document.body.appendChild(toastRoot);
+  }
+  window.__emdbToastViews = (window.__emdbToastViews || 0) + 1;
+  const cancelling = (window.__emdbCancelling = window.__emdbCancelling || new Set());
+
   let nonce = 0;
   function cmd(action, extra) {
     model.set("_command", Object.assign({ action, nonce: nonce++ }, extra || {}));
     model.save_changes();
   }
 
-  let lastSig = "";
   function draw() {
     const downloads = model.get("downloads") || {};
     for (const t of [...cancelling]) if (!(t in downloads)) cancelling.delete(t);
     const tokens = Object.keys(downloads);
+    // Shared signature on the root, so only one view rebuilds per set-change.
     const sig = tokens
       .map(function (t) { return t + (downloads[t].error ? ":e" : cancelling.has(t) ? ":c" : ""); })
       .sort().join("|");
-    if (sig === lastSig) {  // only byte-progress changed -> update in place
+    if (toastRoot.dataset.sig === sig) {  // only byte-progress changed
       for (const t of tokens) {
         if (!downloads[t].error && !cancelling.has(t)) update(t, downloads[t]);
       }
       return;
     }
-    lastSig = sig;
+    toastRoot.dataset.sig = sig;
     toastRoot.innerHTML = "";
     for (const [token, dl] of Object.entries(downloads)) {
       toastRoot.appendChild(dl.error ? errorToast(token, dl) : progressToast(token, dl));
@@ -95,6 +108,7 @@ function render({ model, el: root }) {
     card.querySelector(".emdb-x").addEventListener("click", function () {
       cmd("cancel", { token: token });
       cancelling.add(token);
+      toastRoot.dataset.sig = "";  // force a rebuild into the cancelling state
       draw();
     });
     return card;
@@ -113,9 +127,18 @@ function render({ model, el: root }) {
 
   const onDownloads = function () { draw(); };
   model.on("change:downloads", onDownloads);
+  // A fresh view must render from scratch (its shared root may hold stale sig).
+  toastRoot.dataset.sig = "";
   draw();
 
-  return function () { toastRoot.remove(); model.off("change:downloads", onDownloads); };
+  return function () {
+    model.off("change:downloads", onDownloads);
+    window.__emdbToastViews -= 1;
+    if (window.__emdbToastViews <= 0) {
+      const tr = document.getElementById("emdb-global-toast-root");
+      if (tr) tr.remove();
+    }
+  };
 }
 
 export default { render };

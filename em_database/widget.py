@@ -461,8 +461,15 @@ def _in_jupyter():
 
 
 def _get_toasts():
-    """Return the singleton toasts widget, displaying it once, or None if a
-    toast can't be shown (not in Jupyter, or anywidget missing)."""
+    """Return the singleton toasts widget, or None if a toast can't be shown
+    (not in Jupyter, or anywidget missing).
+
+    The widget is re-displayed on every call so it re-anchors in the current
+    cell: a widget view is tied to a cell's output, so clearing or re-running
+    that cell kills the view. Re-displaying gives a fresh, live view each time;
+    the views share one body-level toast root (see toasts.js), so re-anchoring
+    never duplicates the toasts.
+    """
     global _toasts, _toasts_class
     if not _in_jupyter():
         return None
@@ -470,17 +477,12 @@ def _get_toasts():
     try:
         if _toasts_class is None:
             _toasts_class = _make_toasts_class()
+        if _toasts is None:
+            _toasts = _toasts_class()
+        from IPython.display import display
+        display(_toasts)
     except Exception:
         return None
-    if _toasts is None:
-        try:
-            widget = _toasts_class()
-            from IPython.display import display
-            display(widget)
-            _toasts = widget
-        except Exception:
-            _toasts = None
-            return None
     return _toasts
 
 
