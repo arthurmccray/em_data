@@ -17,8 +17,8 @@ pip install em-database
 ## Usage
 
 Every dataset is a class under `em_database.data`.  Calling `download()` fetches the
-file to the data directory, verifies its checksum, and returns the path.  Files that
-are already present are not downloaded again.
+file to the data directory, verifies its checksum, and returns a path handle.  Files
+that are already present are not downloaded again.
 
 ```python
 import em_database.data as data
@@ -27,6 +27,13 @@ import hyperspy.api as hs
 path = data.LayeredCuNb4DSTEM().download()
 s = hs.load(path, lazy=True)
 ```
+
+By default the download runs on a background thread so a notebook cell returns
+immediately.  The handle it returns *is* the file path, so you can hand it straight
+to a loader as above — it only blocks at the moment the file is actually opened.
+Call `path.done()` to check progress without blocking, or `path.result()` to wait
+explicitly.  Pass `download(background=False)` to block and get the path as a plain
+string instead.
 
 The download location defaults to `~/em_database` and can be changed either for the
 session or through the `EM_DATABASE_DATA_DIR` environment variable:

@@ -37,7 +37,8 @@ Repository = "https://github.com/CSSFrancis/em_data"
 Issues = "https://github.com/CSSFrancis/em_data/issues"
 
 [project.optional-dependencies]
-tests = ["pytest", "pytest-cov", "hyperspy", "quantem"]
+widget = ["anywidget>=0.9"]
+tests = ["pytest", "pytest-cov", "hyperspy", "quantem", "anywidget>=0.9"]
 doc = ["sphinx", "sphinx-rtd-theme","sphinx-gallery", "quantem", "hyperspy","pydata_sphinx_theme","sphinx_design",]
 
 
@@ -58,7 +59,7 @@ build-backend = "setuptools.build_meta"
 include-package-data = true
 
 [tool.setuptools.package-data]
-em_database = ["*.pyi", "datasets/*.yaml", "datasets/*.yml", "datasets/*.json"]
+em_database = ["*.pyi", "datasets/*.yaml", "datasets/*.yml", "datasets/*.json", "static/*.js", "static/*.css"]
 
 [tool.setuptools.packages.find]
 where = ["."]

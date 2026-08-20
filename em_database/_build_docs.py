@@ -370,6 +370,209 @@ def generate_html_table(datasets_by_technique):
     """
     return html
 
+# ---------------------------------------------------------------------------
+# Widget-styled browser for the docs landing page
+# ---------------------------------------------------------------------------
+#
+# Reuses the Jupyter widget's CSS (em_database/static/browser.css) and the
+# em_database.catalogue data model so the docs page looks and browses exactly
+# like em_database.browse(). A static site has no kernel, so instead of live
+# downloads the details panel offers the copy-to-load snippet and a direct link
+# to the source file.
+
+_DOCS_BROWSER_JS = r"""
+(function () {
+  var root = document.getElementById("root");
+  root.classList.add("emdb");
+  var TAB_LABEL = { "In-situ TEM": "In-situ", "Cryo-EM": "Cryo" };
+  var state = { tab: "All", search: "", selected: null, hovered: null };
+
+  function esc(v) {
+    return String(v).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function el(tag, cls, html) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html != null) n.innerHTML = html;
+    return n;
+  }
+  function toSnake(name) {
+    return name.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+      .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2").toLowerCase();
+  }
+  function copyText(text, btn) {
+    var done = function () {
+      var old = btn.textContent; btn.textContent = "Copied!"; btn.classList.add("copied");
+      setTimeout(function () { btn.textContent = old; btn.classList.remove("copied"); }, 1100);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(text, done); });
+    } else { fallbackCopy(text, done); }
+  }
+  function fallbackCopy(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); } catch (e) {}
+    ta.remove();
+  }
+
+  var header = el("div", "emdb-header");
+  var tabsEl = el("div", "emdb-tabs");
+  var body = el("div", "emdb-body");
+  var listEl = el("div", "emdb-list");
+  var detailsEl = el("div", "emdb-details");
+  body.appendChild(listEl); body.appendChild(detailsEl);
+  root.appendChild(header); root.appendChild(tabsEl); root.appendChild(body);
+
+  function allItems() {
+    return (DATA.groups || []).reduce(function (a, g) { return a.concat(g.items); }, []);
+  }
+  function techniques() { return (DATA.groups || []).map(function (g) { return g.technique; }); }
+  function matchesSearch(it) {
+    if (!state.search) return true;
+    var blob = it.search || it.name.toLowerCase();
+    return state.search.toLowerCase().split(/\s+/).every(function (t) { return blob.indexOf(t) !== -1; });
+  }
+  function findItem(n) { return allItems().filter(function (i) { return i.name === n; })[0] || null; }
+
+  function drawHeader() {
+    header.innerHTML = "";
+    var top = el("div", "emdb-header-top");
+    top.appendChild(el("div", "emdb-brand", '<span class="emdb-diamond">◆</span> Datasets'));
+    top.appendChild(el("div", "emdb-count", DATA.n_total + " datasets"));
+    header.appendChild(top);
+    var search = el("input", "emdb-search");
+    search.type = "text"; search.placeholder = "Search datasets…"; search.value = state.search;
+    search.addEventListener("input", function () { state.search = search.value; drawList(); });
+    header.appendChild(search);
+  }
+  function drawTabs() {
+    tabsEl.innerHTML = "";
+    ["All"].concat(techniques()).forEach(function (tab) {
+      var label = tab === "All" ? "All" : (TAB_LABEL[tab] || tab);
+      var b = el("button", "emdb-tab" + (state.tab === tab ? " active" : ""), esc(label));
+      b.addEventListener("click", function () { state.tab = tab; drawTabs(); drawList(); });
+      tabsEl.appendChild(b);
+    });
+  }
+  function drawList() {
+    listEl.innerHTML = "";
+    var shown = 0;
+    (DATA.groups || []).forEach(function (g) {
+      if (state.tab !== "All" && g.technique !== state.tab) return;
+      var items = g.items.filter(matchesSearch);
+      if (!items.length) return;
+      if (state.tab === "All") listEl.appendChild(el("div", "emdb-group-head", esc(g.technique)));
+      items.forEach(function (it) { listEl.appendChild(drawRow(it)); shown++; });
+    });
+    if (!shown) listEl.appendChild(el("div", "emdb-empty", "No datasets match."));
+    if (!state.selected && allItems().length) state.selected = allItems()[0].name;
+    drawDetails();
+  }
+  function drawRow(it) {
+    var row = el("div", "emdb-row" + (state.selected === it.name ? " selected" : ""));
+    row.appendChild(el("span", "emdb-glyph off", "•"));
+    row.appendChild(el("span", "emdb-name", esc(it.name)));
+    var meta = [it.size, it.shape].filter(Boolean).join("  ·  ");
+    row.appendChild(el("span", "emdb-meta", esc(meta)));
+    row.addEventListener("mouseenter", function () { state.hovered = it.name; drawDetails(); });
+    row.addEventListener("click", function () { state.selected = it.name; drawList(); });
+    return row;
+  }
+  function copyRow(shown, val) {
+    var row = el("div", "emdb-copy");
+    row.appendChild(el("code", "emdb-code", esc(shown)));
+    var btn = el("button", "emdb-copy-btn", "Copy");
+    btn.addEventListener("click", function () { copyText(val, btn); });
+    row.appendChild(btn);
+    return row;
+  }
+  function drawDetails() {
+    var it = findItem(state.hovered || state.selected);
+    detailsEl.innerHTML = "";
+    if (!it) { detailsEl.appendChild(el("div", "emdb-details-empty", "Hover or select a dataset.")); return; }
+    detailsEl.appendChild(el("div", "emdb-d-title", esc(it.name)));
+    detailsEl.appendChild(el("div", "emdb-d-sub",
+      esc([it.technique, it.size, it.shape].filter(Boolean).join("  ·  "))));
+    if (it.description) detailsEl.appendChild(el("p", "emdb-d-desc", esc(it.description)));
+    var pairs = [["Detector", it.detector], ["Microscope", it.microscope], ["Voltage", it.voltage],
+      ["Tags", (it.tags || []).join(", ")], ["Authors", (it.authors || []).join(", ")],
+      ["License", it.license], ["DOI", it.doi]];
+    var meta = el("div", "emdb-d-meta");
+    pairs.forEach(function (kv) {
+      if (!kv[1]) return;
+      var row = el("div", "emdb-kv");
+      row.appendChild(el("span", "emdb-k", kv[0]));
+      row.appendChild(el("span", "emdb-v", esc(kv[1])));
+      meta.appendChild(row);
+    });
+    detailsEl.appendChild(meta);
+    detailsEl.appendChild(el("div", "emdb-load-label", "Load"));
+    var snippet = toSnake(it.name) + " = em_database.data." + it.name + "()";
+    detailsEl.appendChild(copyRow(snippet, snippet));
+    if (it.source && it.file) {
+      var wrap = el("div", "emdb-dl-link");
+      var a = document.createElement("a");
+      a.href = it.source + "/" + it.file; a.target = "_blank"; a.rel = "noopener";
+      a.className = "emdb-dl-anchor"; a.textContent = "⤓ Download " + it.file;
+      wrap.appendChild(a);
+      detailsEl.appendChild(wrap);
+    }
+  }
+
+  drawHeader(); drawTabs(); drawList();
+})();
+"""
+
+_BROWSER_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EM Datasets</title>
+<style>
+__CSS__
+/* docs page overrides */
+html, body { margin: 0; padding: 0; background: transparent; }
+.emdb { max-width: 100%; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25); }
+.emdb-body { height: 520px; }
+.emdb-list { min-width: 360px; max-width: 48%; }
+.emdb-dl-link { margin-top: 12px; }
+.emdb-dl-anchor { color: var(--emdb-blue); text-decoration: none; font-size: 12px; font-weight: 600; }
+.emdb-dl-anchor:hover { text-decoration: underline; }
+</style></head>
+<body>
+<div id="root"></div>
+<script>
+const DATA = __DATA__;
+__JS__
+</script>
+</body></html>
+"""
+
+
+def generate_browser_html():
+    """Generate a self-contained, widget-styled dataset browser for the docs.
+
+    Reuses ``em_database/static/browser.css`` and the ``em_database.catalogue``
+    data model, so the docs landing page looks and browses like
+    ``em_database.browse()`` - minus the live downloads (a static site has no
+    kernel): the details panel offers the copy-to-load snippet and a direct
+    download link instead.
+    """
+    import json
+
+    from em_database import catalogue
+
+    payload = catalogue.catalogue()
+    css = (Path(__file__).parent / "static" / "browser.css").read_text(encoding="utf-8")
+    page = _BROWSER_PAGE.replace("__CSS__", css)
+    page = page.replace("__DATA__", json.dumps(payload))
+    page = page.replace("__JS__", _DOCS_BROWSER_JS)
+    return page
+
+
 if __name__ == "__main__":
 
     # Usage
