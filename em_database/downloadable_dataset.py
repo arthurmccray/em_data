@@ -1,11 +1,10 @@
+import os
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional, Union
 
 import pooch
-import os
-
 
 # A single, lazily-created thread pool shared by every dataset. Background
 # downloads run here so that a notebook cell returns immediately instead of
@@ -85,19 +84,20 @@ class DownloadFuture(_ConcretePath):
 
 
 class DownloadableDataset:
-
-    def __init__(self,
-                 source: str,
-                 file: str,
-                 checksum:str=None,
-                 license:str=None,
-                 quality:str=None,
-                 data_size:str=None,
-                 doi:str=None,
-                 description:str=None,
-                 detector:Optional[str]=None,
-                 detector_manufacturer:Optional[str]=None,
-                 **kwargs):
+    def __init__(
+        self,
+        source: str,
+        file: str,
+        checksum: str = None,
+        license: str = None,
+        quality: str = None,
+        data_size: str = None,
+        doi: str = None,
+        description: str = None,
+        detector: Optional[str] = None,
+        detector_manufacturer: Optional[str] = None,
+        **kwargs,
+    ):
         self.source = source
         self.file = file
         self.checksum = checksum
@@ -120,6 +120,7 @@ class DownloadableDataset:
         """
         try:
             from em_database.widget import card
+
             widget = card(self)
         except Exception:
             return {"text/plain": repr(self)}
@@ -130,15 +131,18 @@ class DownloadableDataset:
         """Return the directory the dataset should live in."""
         if destination is None:
             from em_database import config
+
             return config.data_dir()
         return destination
 
-    def download(self,
-                 destination: str | None = None,
-                 progressbar:bool = True,
-                 chunk_size:int =4096,
-                 background:bool = True) -> Union[str, DownloadFuture]:
-        """ Download the dataset to the specified destination if not already present.
+    def download(
+        self,
+        destination: str | None = None,
+        progressbar: bool = True,
+        chunk_size: int = 4096,
+        background: bool = True,
+    ) -> Union[str, DownloadFuture]:
+        """Download the dataset to the specified destination if not already present.
 
         By default, this will download to the defined emdata.data_dir directory. You can set
         a custom default download directory with emdata.data_dir = 'your/path/here' which will
@@ -188,21 +192,19 @@ class DownloadableDataset:
         if progressbar:
             try:
                 from em_database.widget import _attach_toast
+
                 monitor, finish = _attach_toast(type(self).__name__)
             except Exception:
                 monitor = finish = None
         progress = monitor if monitor is not None else progressbar
-        future = _get_executor().submit(
-            self._retrieve, destination, progress, chunk_size
-        )
+        future = _get_executor().submit(self._retrieve, destination, progress, chunk_size)
         if finish is not None:
             future.add_done_callback(finish)
         return DownloadFuture(target)._attach(future)
 
-    def _retrieve(self,
-                  destination: str | None = None,
-                  progressbar: bool = True,
-                  chunk_size: int = 4096) -> str:
+    def _retrieve(
+        self, destination: str | None = None, progressbar: bool = True, chunk_size: int = 4096
+    ) -> str:
         """Fetch the file and return its local path (blocking).
 
         With no explicit destination, an existing system-wide/shared copy is used
@@ -224,21 +226,22 @@ class DownloadableDataset:
             destination = self._resolve_destination(destination)
         # Instantiate an Http downloader with a custom user agent
         headers = {"User-Agent": "em_database (https://github.com/CSSFrancis/em_data)"}
-        downloader = pooch.HTTPDownloader(progressbar=progressbar,
-                                          chunk_size=chunk_size,
-                                          headers= headers)
+        downloader = pooch.HTTPDownloader(
+            progressbar=progressbar, chunk_size=chunk_size, headers=headers
+        )
         filepath = pooch.retrieve(
-            url=self.source +"/"+ self.file,
+            url=self.source + "/" + self.file,
             known_hash=self.checksum,
             fname=self.file,
             path=destination,
-            downloader=downloader
+            downloader=downloader,
         )
         return filepath
 
     def _find_shared(self) -> str | None:
         """Path to an existing copy in a shared/system data dir, or None."""
         from em_database import config
+
         for directory in config.shared_data_dirs():
             candidate = os.path.join(directory, self.file)
             if os.path.exists(candidate):
@@ -246,11 +249,12 @@ class DownloadableDataset:
         return None
 
     def filepath(self) -> str:
-        """ Return the local file path of the dataset if present.
+        """Return the local file path of the dataset if present.
 
         Looks in the shared/system data locations first, then the user's data
-        directory. Returns None if the dataset is not downloaded anywhere. """
+        directory. Returns None if the dataset is not downloaded anywhere."""
         from em_database import config
+
         for directory in config.data_search_dirs():
             candidate = os.path.join(directory, self.file)
             if os.path.exists(candidate):
@@ -258,7 +262,7 @@ class DownloadableDataset:
         return None
 
     def delete(self, destination: str | None = None) -> bool:
-        """ Delete the downloaded file if it is present.
+        """Delete the downloaded file if it is present.
 
         Parameters
         ----------

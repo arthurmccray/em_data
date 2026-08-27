@@ -26,6 +26,11 @@ def test_get_data_dir():
     assert em_database.get_data_dir() == DEFAULT_DIR
 
 
+def test_reset_data_dir_returns_to_the_default():
+    em_database.reset_data_dir()
+    assert em_database.get_data_dir() == DEFAULT_DIR
+
+
 def test_set_data_dir(tmp_path):
     em_database.set_data_dir(str(tmp_path))
     assert em_database.get_data_dir() == str(tmp_path)

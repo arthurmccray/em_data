@@ -70,8 +70,7 @@ def test_metadata_is_complete(name):
     assert dataset.file, f"{name} has no file"
     assert dataset.description, f"{name} has no description"
     assert dataset.checksum and dataset.checksum.startswith("md5:"), (
-        f"{name} has no md5 checksum, so a corrupt or truncated download "
-        f"would go unnoticed"
+        f"{name} has no md5 checksum, so a corrupt or truncated download would go unnoticed"
     )
 
 
@@ -113,8 +112,8 @@ def test_download_handle_is_nonblocking_then_blocks_on_use(tmp_path, monkeypatch
     monkeypatch.setattr(dataset, "_retrieve", slow_retrieve)
     handle = dataset.download(destination=tmp_path, progressbar=False)
 
-    assert started.wait(2)                       # the worker thread really started
-    assert handle.done() is False                # returned without waiting for it
+    assert started.wait(2)  # the worker thread really started
+    assert handle.done() is False  # returned without waiting for it
     assert not (tmp_path / dataset.file).exists()
     # Consuming the path blocks until the worker finishes, then resolves.
     assert Path(os.fspath(handle)).read_bytes() == b"payload"

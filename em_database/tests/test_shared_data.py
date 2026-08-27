@@ -4,6 +4,7 @@ The conftest fixture isolates the user + system config and clears the shared/dat
 env vars, so these exercise the resolution logic in isolation (no network - the
 "downloads" here find a pre-placed file).
 """
+
 import os
 
 import em_database
@@ -30,11 +31,11 @@ def test_shared_dir_is_searched_before_the_user_dir(tmp_path, monkeypatch):
     em_database.set_data_dir(str(user), persist=False)
 
     ds = _dataset()
-    assert ds.filepath() is None                    # nowhere yet
+    assert ds.filepath() is None  # nowhere yet
     (user / ds.file).write_bytes(b"user")
-    assert ds.filepath() == str(user / ds.file)     # found in the user dir
+    assert ds.filepath() == str(user / ds.file)  # found in the user dir
     (shared / ds.file).write_bytes(b"shared")
-    assert ds.filepath() == str(shared / ds.file)   # shared/system wins
+    assert ds.filepath() == str(shared / ds.file)  # shared/system wins
 
 
 def test_download_uses_a_shared_copy_without_refetching(tmp_path, monkeypatch):
@@ -45,10 +46,10 @@ def test_download_uses_a_shared_copy_without_refetching(tmp_path, monkeypatch):
     em_database.set_data_dir(str(user), persist=False)
 
     ds = _dataset()
-    (shared / ds.file).write_bytes(b"payload")      # pre-installed system-wide
+    (shared / ds.file).write_bytes(b"payload")  # pre-installed system-wide
     path = ds.download(background=False)
-    assert path == str(shared / ds.file)            # used the shared copy
-    assert not (user / ds.file).exists()            # nothing downloaded to the user dir
+    assert path == str(shared / ds.file)  # used the shared copy
+    assert not (user / ds.file).exists()  # nothing downloaded to the user dir
 
 
 def test_search_order_is_shared_then_user(tmp_path, monkeypatch):

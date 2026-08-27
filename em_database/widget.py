@@ -10,6 +10,7 @@ anywidget is an optional dependency; :func:`browse` raises a helpful error if it
 is not installed. Importing this module never imports anywidget at module load,
 so ``import em_database`` stays cheap and dependency-light.
 """
+
 from __future__ import annotations
 
 import itertools
@@ -41,7 +42,9 @@ def _quiet_pooch():
         return
     try:
         import logging
+
         import pooch
+
         pooch.get_logger().setLevel(logging.WARNING)
         _pooch_quieted = True
     except Exception:
@@ -61,6 +64,7 @@ def _enable_colab_widgets():
         return
     try:
         from google.colab import output  # importable only on Colab
+
         output.enable_custom_widget_manager()
     except Exception:
         pass
@@ -222,12 +226,8 @@ def _make_browser_class():
             # and it also covers the cached case where no bytes ever flow.
             self._set_progress(token, name, 0, 0)
             monitor = _WidgetProgress(self, token, name, cancel)
-            future = _get_executor().submit(
-                ds.download, progressbar=monitor, background=False
-            )
-            future.add_done_callback(
-                lambda f, tk=token, nm=name: self._finish_download(tk, nm, f)
-            )
+            future = _get_executor().submit(ds.download, progressbar=monitor, background=False)
+            future.add_done_callback(lambda f, tk=token, nm=name: self._finish_download(tk, nm, f))
             return future
 
         def _finish_download(self, token, name, future):
@@ -281,7 +281,7 @@ def _make_card_class():
         _esm = _STATIC / "card.js"
         _css = _STATIC / "browser.css"
 
-        info = traitlets.Dict().tag(sync=True)      # the catalogue entry() dict
+        info = traitlets.Dict().tag(sync=True)  # the catalogue entry() dict
         download = traitlets.Dict().tag(sync=True)  # {label, done, total} | {} | {error}
         _command = traitlets.Dict().tag(sync=True)
 
@@ -396,6 +396,7 @@ def browse(**kwargs):
 # ---------------------------------------------------------------------------
 # Global toasts: a bare ``ds.download()`` in Jupyter pops a cancelable toast
 # ---------------------------------------------------------------------------
+
 
 def _make_settings_class():
     """Build the ``SettingsWidget`` class, importing anywidget lazily."""
@@ -553,6 +554,7 @@ def _in_notebook():
     VS Code, ...), False in plain Python or a terminal IPython."""
     try:
         from IPython import get_ipython
+
         ip = get_ipython()
         if ip is None:
             return False
@@ -583,6 +585,7 @@ def _get_toasts():
         if _toasts is None:
             _toasts = _toasts_class()
         from IPython.display import display
+
         display(_toasts)
     except Exception:
         return None

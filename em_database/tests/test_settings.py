@@ -3,6 +3,7 @@
 The autouse fixture in conftest.py isolates each test to an empty settings file
 and clears the legacy env var, so these exercise the mechanism in isolation.
 """
+
 import em_database
 from em_database import config
 
@@ -15,15 +16,15 @@ def test_defaults_when_nothing_configured():
 def test_live_object_is_immediate_like_rcparams(tmp_path):
     em_database.settings["data_dir"] = str(tmp_path / "live")
     assert em_database.get_data_dir() == str(tmp_path / "live")  # no save needed
-    assert not config.config_path().exists()                     # not persisted
+    assert not config.config_path().exists()  # not persisted
 
 
 def test_set_data_dir_persists_across_sessions(tmp_path):
     target = str(tmp_path / "data")
-    em_database.set_data_dir(target)               # persist=True by default
+    em_database.set_data_dir(target)  # persist=True by default
     assert em_database.get_data_dir() == target
     assert config._read_file()["data_dir"] == target
-    config.settings.reload()                       # a fresh "session"
+    config.settings.reload()  # a fresh "session"
     assert em_database.get_data_dir() == target
 
 
@@ -54,9 +55,9 @@ def test_generic_setting_roundtrips():
 def test_saving_other_settings_keeps_the_default_dynamic():
     """Persisting an unrelated setting must NOT freeze the default data_dir into
     the file - otherwise the default would stop being obeyed."""
-    em_database.set_setting("quality", "high")   # triggers a save()
+    em_database.set_setting("quality", "high")  # triggers a save()
     stored = config._read_file()
-    assert stored == {"quality": "high"}          # data_dir default not written
+    assert stored == {"quality": "high"}  # data_dir default not written
     assert em_database.get_data_dir() == config._default_data_dir()
 
 

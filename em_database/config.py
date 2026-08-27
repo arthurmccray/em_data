@@ -24,6 +24,7 @@ system config file (see :func:`system_config_path`), the ``EM_DATABASE_SHARED_DI
 environment variable (an ``os.pathsep``-separated list), or a ``shared_data_dirs``
 list in the user's settings.
 """
+
 from __future__ import annotations
 
 import os
@@ -155,6 +156,7 @@ class Settings(dict):
     def widget(self):
         """Return an interactive widget for editing the settings (Jupyter)."""
         from em_database.widget import settings_widget
+
         return settings_widget()
 
     def _repr_mimebundle_(self, **kwargs):
@@ -162,6 +164,7 @@ class Settings(dict):
         plain dict repr if anywidget is not installed)."""
         try:
             from em_database.widget import settings_widget
+
             widget = settings_widget()
         except Exception:
             return {"text/plain": repr(dict(self))}

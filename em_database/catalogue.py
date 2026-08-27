@@ -7,11 +7,11 @@ downloads nothing and opens no files, so it is cheap enough to rebuild on every
 render (the one thing that changes underfoot is which files are on disk, which
 is a single ``os.path.exists`` per dataset).
 """
+
 from __future__ import annotations
 
 import inspect
 from typing import Any, Optional
-
 
 # Techniques in the order the browser should show them - the modalities the
 # collection is built around first, then anything else alphabetically.
@@ -32,8 +32,11 @@ def datasets() -> list[tuple[str, Any]]:
         if name.startswith("_"):
             continue
         obj = getattr(data, name, None)
-        if (not inspect.isclass(obj) or obj is DownloadableDataset
-                or not issubclass(obj, DownloadableDataset)):
+        if (
+            not inspect.isclass(obj)
+            or obj is DownloadableDataset
+            or not issubclass(obj, DownloadableDataset)
+        ):
             continue
         try:
             out.append((name, obj()))
@@ -122,10 +125,19 @@ def entry(name: str, ds) -> dict:
     # "Carter Francis" (an author) or "Direct Electron" (an affiliation) finds
     # every dataset it touches - not just the name.
     searchable = [
-        name, row["technique"], row["description"], row["detector"],
-        row["microscope"], row["voltage"], row["license"], row["doi"],
-        row["file"], row["shape"] or "", " ".join(row["tags"]),
-        " ".join(names), " ".join(affiliations),
+        name,
+        row["technique"],
+        row["description"],
+        row["detector"],
+        row["microscope"],
+        row["voltage"],
+        row["license"],
+        row["doi"],
+        row["file"],
+        row["shape"] or "",
+        " ".join(row["tags"]),
+        " ".join(names),
+        " ".join(affiliations),
     ]
     row["search"] = " ".join(str(s) for s in searchable if s).lower()
     return row
