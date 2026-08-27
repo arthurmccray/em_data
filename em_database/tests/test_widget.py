@@ -56,6 +56,21 @@ def test_catalogue_entry_has_expected_fields():
     assert isinstance(row["downloaded"], bool)
 
 
+def test_catalogue_entry_reports_where_the_file_came_from(tmp_path, monkeypatch):
+    shared, user = tmp_path / "shared", tmp_path / "user"
+    shared.mkdir()
+    user.mkdir()
+    monkeypatch.setenv("EM_DATABASE_SHARED_DIR", str(shared))
+    em_database.set_data_dir(str(user), persist=False)
+
+    ds = catalogue.resolve(TINY_DATASET)
+    assert catalogue.entry(TINY_DATASET, ds)["location"] is None
+    (user / ds.file).write_bytes(b"x")
+    assert catalogue.entry(TINY_DATASET, ds)["location"] == "user"
+    (shared / ds.file).write_bytes(b"x")
+    assert catalogue.entry(TINY_DATASET, ds)["location"] == "shared"
+
+
 def test_catalogue_downloaded_flag_tracks_the_file(tmp_path):
     em_database.set_data_dir(str(tmp_path), persist=False)
     ds = catalogue.resolve(TINY_DATASET)

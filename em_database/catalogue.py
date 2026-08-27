@@ -11,6 +11,7 @@ is a single ``os.path.exists`` per dataset).
 from __future__ import annotations
 
 import inspect
+import os
 from typing import Any, Optional
 
 # Techniques in the order the browser should show them - the modalities the
@@ -95,6 +96,17 @@ def _authors(md) -> tuple[list[str], list[str]]:
     return [str(a) for a in (authors or [])], []
 
 
+def _location(path: Optional[str]) -> Optional[str]:
+    """Which data directory a downloaded file came from: "shared" or "user"."""
+    if not path:
+        return None
+    from em_database import config
+
+    parent = os.path.abspath(os.path.dirname(path))
+    shared = {os.path.abspath(str(d)) for d in config.shared_data_dirs()}
+    return "shared" if parent in shared else "user"
+
+
 def entry(name: str, ds) -> dict:
     """One catalogue row - everything the browser draws for a dataset."""
     md = getattr(ds, "metadata", None) or {}
@@ -109,6 +121,7 @@ def entry(name: str, ds) -> dict:
         "size": str(getattr(ds, "data_size", "") or ""),
         "shape": _declared_shape(ds),
         "downloaded": bool(path),
+        "location": _location(path),
         "path": path or "",
         "description": str(getattr(ds, "description", "") or ""),
         "detector": _join(getattr(ds, "detector_manufacturer", ""), getattr(ds, "detector", "")),

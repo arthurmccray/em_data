@@ -21,17 +21,10 @@ for root, dirs, files in os.walk(datasets_path):
                 for name in data_dict_yaml:
                     class_name = name.replace(" ", "_").replace("-", "_")
                     data_dict = data_dict_yaml[name]
-
-                    def _make_init(data):
-                        def __init__(self):
-                            super(self.__class__, self).__init__(**data)
-
-                        return __init__
-
                     _new_class = type(
                         class_name,
                         (DownloadableDataset,),
-                        {"__init__": _make_init(data_dict), "__doc__": build_docstring(data_dict)},
+                        {"_spec": data_dict, "__doc__": build_docstring(data_dict)},
                     )
 
                     # Add to module globals and __all__

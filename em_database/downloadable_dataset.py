@@ -2,7 +2,7 @@ import os
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, ClassVar, Optional, Union
 
 import pooch
 
@@ -34,6 +34,23 @@ def _get_executor() -> ThreadPoolExecutor:
 # the download path — but a Path subclass does.
 _ConcretePath = type(Path())
 
+# Downloads in flight, keyed by the destination path. Keeping this off the
+# instance is what makes a derived path behave: pathlib builds a brand new
+# object for ``handle.parent / handle.name``, and an instance attribute would
+# not survive that, so the copy would report itself finished and never wait.
+_PENDING: dict[str, "Future[str]"] = {}
+_PENDING_LOCK = threading.Lock()
+
+
+def _pending_key(path: object) -> str:
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
+def _release_pending(key: str, future: "Future[str]") -> None:
+    with _PENDING_LOCK:
+        if _PENDING.get(key) is future:
+            del _PENDING[key]
+
 
 class DownloadFuture(_ConcretePath):
     """The path to a dataset that is downloading on a background thread.
@@ -47,30 +64,41 @@ class DownloadFuture(_ConcretePath):
 
     For explicit control it also behaves like a future: ``done()`` checks status
     without blocking, ``result()``/``wait()`` block until the file is ready.
+
+    Any path pointing at the same file waits, however it was built. ``str()``
+    and ``Path()`` are the exceptions: they hand back a plain value with no
+    download attached, so ``hs.load(str(handle))`` will not block.
     """
 
+    @property
+    def _future(self) -> "Future[str] | None":
+        return _PENDING.get(_pending_key(self))
+
     def _attach(self, future: "Future[str]") -> "DownloadFuture":
-        self._future = future
+        key = _pending_key(self)
+        with _PENDING_LOCK:
+            _PENDING[key] = future
+        future.add_done_callback(lambda finished: _release_pending(key, finished))
         return self
 
     def __fspath__(self) -> str:
         # is_file()/exists()/stat()/open() and every os.fspath() consumer route
         # through here, so blocking here makes all of them wait for the bytes.
-        future = getattr(self, "_future", None)
+        future = self._future
         if future is not None:
             future.result()  # blocks; re-raises a failed download
         return str(self)
 
     def result(self, timeout: Optional[float] = None) -> str:
         """Block until the download finishes and return the file path."""
-        future = getattr(self, "_future", None)
+        future = self._future
         if future is not None:
             future.result(timeout)
         return str(self)
 
     def done(self) -> bool:
         """Return True if the download has finished (without blocking)."""
-        future = getattr(self, "_future", None)
+        future = self._future
         return future.done() if future is not None else True
 
     def wait(self, timeout: Optional[float] = None) -> "DownloadFuture":
@@ -84,31 +112,30 @@ class DownloadFuture(_ConcretePath):
 
 
 class DownloadableDataset:
-    def __init__(
-        self,
-        source: str,
-        file: str,
-        checksum: str = None,
-        license: str = None,
-        quality: str = None,
-        data_size: str = None,
-        doi: str = None,
-        description: str = None,
-        detector: Optional[str] = None,
-        detector_manufacturer: Optional[str] = None,
-        **kwargs,
-    ):
-        self.source = source
-        self.file = file
-        self.checksum = checksum
-        self.license = license
-        self.quality = quality
-        self.doi = doi
-        self.data_size = data_size
-        self.description = description
-        self.metadata = kwargs
-        self.detector_manufacturer = detector_manufacturer
-        self.detector = detector
+    """A downloadable dataset, described by the YAML entry in :attr:`_spec`.
+
+    The generated subclasses in :mod:`em_database.data` carry their entry as
+    ``_spec``; keyword arguments override it for a single instance.
+    """
+
+    _spec: ClassVar[dict[str, Any]] = {}
+
+    def __init__(self, **overrides: Any):
+        spec = {**self._spec, **overrides}
+        try:
+            self.source = spec.pop("source")
+            self.file = spec.pop("file")
+        except KeyError as error:
+            raise TypeError(f"a dataset needs a {error} entry") from None
+        self.checksum = spec.pop("checksum", None)
+        self.license = spec.pop("license", None)
+        self.quality = spec.pop("quality", None)
+        self.doi = spec.pop("doi", None)
+        self.data_size = spec.pop("data_size", None)
+        self.description = spec.pop("description", None)
+        self.detector_manufacturer = spec.pop("detector_manufacturer", None)
+        self.detector = spec.pop("detector", None)
+        self.metadata = spec
 
     def __repr__(self):
         return f"<{self.__class__} url={self.source}/{self.file} bytes={self.data_size}>"
