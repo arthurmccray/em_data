@@ -33,19 +33,20 @@ from pathlib import Path
 import yaml
 
 
-def _default_data_dir() -> str:
-    return os.path.join(os.path.expanduser("~"), "em_database")
+def _default_data_dir() -> Path:
+    return Path.home() / "em_database"
 
 
-#: Built-in defaults - the fallback when nothing is configured.
+#: Built-in defaults - the fallback when nothing is configured. Values here are
+#: the serialized (string) form, so they compare equal to what the YAML holds.
 DEFAULTS: dict = {
-    "data_dir": _default_data_dir(),
+    "data_dir": str(_default_data_dir()),
 }
 
 
 def config_dir() -> Path:
     """The ``~/.em_database`` folder that holds the settings file."""
-    return Path(os.path.expanduser("~")) / ".em_database"
+    return Path.home() / ".em_database"
 
 
 def config_path() -> Path:
@@ -176,12 +177,12 @@ settings = Settings()
 _seed(settings)
 
 
-def data_dir() -> str:
+def data_dir() -> Path:
     """The user's data directory - where downloads are written."""
-    return str(settings.get("data_dir") or _default_data_dir())
+    return Path(settings.get("data_dir") or _default_data_dir())
 
 
-def shared_data_dirs() -> list[str]:
+def shared_data_dirs() -> list[Path]:
     """System-wide / shared data locations, checked before the user's dir.
 
     Order: ``EM_DATABASE_SHARED_DIR`` (an ``os.pathsep`` list), then the user's
@@ -198,15 +199,15 @@ def shared_data_dirs() -> list[str]:
         dirs.append(str(system["data_dir"]))
     dirs += [str(d) for d in (system.get("shared_data_dirs") or [])]
     seen: set[str] = set()
-    unique: list[str] = []
+    unique: list[Path] = []
     for d in dirs:
         if d not in seen:
             seen.add(d)
-            unique.append(d)
+            unique.append(Path(d))
     return unique
 
 
-def data_search_dirs() -> list[str]:
+def data_search_dirs() -> list[Path]:
     """Everywhere to look for an existing dataset: shared/system dirs first,
     then the user's data directory."""
     dirs = shared_data_dirs()

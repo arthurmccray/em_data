@@ -22,16 +22,19 @@ import em_database.data as data
 from em_database.data import MgONanoCrystals, NiEBSDLarge
 from em_database.downloadable_dataset import (
     _PENDING,
+    DatasetPath,
     DownloadableDataset,
-    DownloadFuture,
     _pending_key,
 )
 
 try:
-    from quantem.core.io.file_readers import read_4dstem
+    from quantem.core.io.file_readers import (  # pyright: ignore[reportMissingImports]
+        read_4dstem,
+    )
 
     QUANTEM_AVAILABLE = True
 except ImportError:
+    read_4dstem = None
     QUANTEM_AVAILABLE = False
 
 # The smallest file in the index (34 kB). Used wherever a test needs a real
@@ -84,8 +87,10 @@ def test_download_verifies_checksum(tmp_path):
     dataset = getattr(data, TINY_DATASET)()
     path = dataset.download(destination=tmp_path, progressbar=False, background=False)
     assert (tmp_path / dataset.file).exists()
-    assert isinstance(path, str)
-    assert path == str(tmp_path / dataset.file)
+    assert isinstance(path, DatasetPath)
+    assert isinstance(path, Path)
+    assert path.done is True  # nothing pending, so the handle needs no waiting
+    assert path == tmp_path / dataset.file
 
 
 def test_download_default_returns_path_handle(tmp_path):
@@ -93,13 +98,13 @@ def test_download_default_returns_path_handle(tmp_path):
     that is a real ``Path`` and resolves to the downloaded file."""
     dataset = getattr(data, TINY_DATASET)()
     handle = dataset.download(destination=tmp_path, progressbar=False)
-    assert isinstance(handle, DownloadFuture)
+    assert isinstance(handle, DatasetPath)
     assert isinstance(handle, Path)
     # Using it as a path blocks until the bytes are there, then behaves normally.
     assert os.fspath(handle) == str(tmp_path / dataset.file)
     assert handle.is_file()
     assert (tmp_path / dataset.file).exists()
-    assert handle.done()
+    assert handle.done
 
 
 def test_download_handle_is_nonblocking_then_blocks_on_use(tmp_path, monkeypatch):
@@ -118,11 +123,11 @@ def test_download_handle_is_nonblocking_then_blocks_on_use(tmp_path, monkeypatch
     handle = dataset.download(destination=tmp_path, progressbar=False)
 
     assert started.wait(2)  # the worker thread really started
-    assert handle.done() is False  # returned without waiting for it
+    assert handle.done is False  # returned without waiting for it
     assert not (tmp_path / dataset.file).exists()
     # Consuming the path blocks until the worker finishes, then resolves.
     assert Path(os.fspath(handle)).read_bytes() == b"payload"
-    assert handle.done() is True
+    assert handle.done is True
 
 
 def test_download_handle_derived_paths_also_wait(tmp_path, monkeypatch):
@@ -143,7 +148,7 @@ def test_download_handle_derived_paths_also_wait(tmp_path, monkeypatch):
 
     derived = handle.parent / handle.name
     assert derived is not handle
-    assert derived.done() is False
+    assert derived.done is False
     assert Path(os.fspath(derived)).read_bytes() == b"payload"
 
 
@@ -159,7 +164,7 @@ def test_a_path_that_is_not_downloading_never_waits(tmp_path, monkeypatch):
 
     monkeypatch.setattr(dataset, "_retrieve", slow_retrieve)
     handle = dataset.download(destination=tmp_path, progressbar=False)
-    assert handle.parent.done() is True
+    assert handle.parent.done is True
     handle.wait()
 
 
@@ -241,6 +246,7 @@ def test_download_mgo_nanocrystals(tmp_path):
 @pytest.mark.slow
 @pytest.mark.skipif(not QUANTEM_AVAILABLE, reason="quantem is not installed")
 def test_quantem_loading(tmp_path):
+    assert read_4dstem is not None
     dataset = MgONanoCrystals()
     file_path = dataset.download(destination=tmp_path, progressbar=False, background=False)
     read_4dstem(file_path)

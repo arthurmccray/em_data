@@ -63,7 +63,7 @@ def _enable_colab_widgets():
     if _colab_enabled:
         return
     try:
-        from google.colab import output  # importable only on Colab
+        from google.colab import output  # pyright: ignore[reportMissingImports]
 
         output.enable_custom_widget_manager()
     except Exception:
@@ -424,10 +424,10 @@ def _make_settings_class():
             self.observe(self._on_command, names="_command")
 
         def _refresh(self, status=""):
-            self.data_dir = config.data_dir()
-            self.default_dir = config._default_data_dir()
+            self.data_dir = str(config.data_dir())
+            self.default_dir = str(config._default_data_dir())
             self.config_path = str(config.config_path())
-            self.search_dirs = list(config.data_search_dirs())
+            self.search_dirs = [str(d) for d in config.data_search_dirs()]
             self.status = status
 
         def _on_command(self, change):
@@ -553,7 +553,7 @@ def _in_notebook():
     """True in a notebook frontend that can render widgets (Jupyter, Colab,
     VS Code, ...), False in plain Python or a terminal IPython."""
     try:
-        from IPython import get_ipython
+        from IPython.core.getipython import get_ipython
 
         ip = get_ipython()
         if ip is None:

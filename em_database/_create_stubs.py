@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import yaml
@@ -31,29 +30,24 @@ def generate_pyi_stub():
     # Collect all dataset classes
     dataset_classes = []
 
-    for root, dirs, files in os.walk(os.path.join(os.path.dirname(__file__), "datasets")):
-        for file in files:
-            if file.endswith(".yaml") or file.endswith(".yml"):
-                dataset_path = os.path.join(root, file)
-                with open(dataset_path, "r") as f:
-                    data_dict_yaml = yaml.safe_load(f)
-                    for name in data_dict_yaml:
-                        data_dict = data_dict_yaml[name]
-                        class_name = name.replace(" ", "_").replace("-", "_")
-                        description = build_docstring(data_dict)
+    for dataset_path in sorted((Path(__file__).parent / "datasets").rglob("*.y*ml")):
+        data_dict_yaml = yaml.safe_load(dataset_path.read_text(encoding="utf-8"))
+        for name in data_dict_yaml:
+            data_dict = data_dict_yaml[name]
+            class_name = name.replace(" ", "_").replace("-", "_")
+            description = build_docstring(data_dict)
 
-                        # Add class definition to stub
-                        stub_lines.append(f"class {class_name}(DownloadableDataset):")
-                        stub_lines.append('    """')
-                        stub_lines.append(f"    {name}")
-                        if description:
-                            stub_lines.append("    ")
-                            stub_lines.append(f"    {description}")
-                        stub_lines.append('    """')
-                        stub_lines.append("    ...")
-                        stub_lines.append("")
+            stub_lines.append(f"class {class_name}(DownloadableDataset):")
+            stub_lines.append('    """')
+            stub_lines.append(f"    {name}")
+            if description:
+                stub_lines.append("    ")
+                stub_lines.append(f"    {description}")
+            stub_lines.append('    """')
+            stub_lines.append("    ...")
+            stub_lines.append("")
 
-                        dataset_classes.append(class_name)
+            dataset_classes.append(class_name)
 
     stub_lines.append(f"__all__ = {dataset_classes}")
 

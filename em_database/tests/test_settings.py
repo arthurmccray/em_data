@@ -4,34 +4,36 @@ The autouse fixture in conftest.py isolates each test to an empty settings file
 and clears the legacy env var, so these exercise the mechanism in isolation.
 """
 
+from pathlib import Path
+
 import em_database
 from em_database import config
 
 
 def test_defaults_when_nothing_configured():
     assert em_database.get_data_dir() == config._default_data_dir()
-    assert em_database.settings["data_dir"] == config._default_data_dir()
+    assert em_database.settings["data_dir"] == str(config._default_data_dir())
 
 
 def test_live_object_is_immediate_like_rcparams(tmp_path):
     em_database.settings["data_dir"] = str(tmp_path / "live")
-    assert em_database.get_data_dir() == str(tmp_path / "live")  # no save needed
+    assert em_database.get_data_dir() == tmp_path / "live"  # no save needed
     assert not config.config_path().exists()  # not persisted
 
 
 def test_set_data_dir_persists_across_sessions(tmp_path):
     target = str(tmp_path / "data")
     em_database.set_data_dir(target)  # persist=True by default
-    assert em_database.get_data_dir() == target
+    assert em_database.get_data_dir() == Path(target)
     assert config._read_file()["data_dir"] == target
     config.settings.reload()  # a fresh "session"
-    assert em_database.get_data_dir() == target
+    assert em_database.get_data_dir() == Path(target)
 
 
 def test_set_data_dir_session_only_is_not_persisted(tmp_path):
     target = str(tmp_path / "x")
     em_database.set_data_dir(target, persist=False)
-    assert em_database.get_data_dir() == target
+    assert em_database.get_data_dir() == Path(target)
     assert not config.config_path().exists()
     config.settings.reload()
     assert em_database.get_data_dir() == config._default_data_dir()  # forgotten
@@ -64,4 +66,4 @@ def test_saving_other_settings_keeps_the_default_dynamic():
 def test_legacy_env_var_still_seeds(tmp_path, monkeypatch):
     monkeypatch.setenv("EM_DATABASE_DATA_DIR", str(tmp_path / "fromenv"))
     config.settings.reload()  # a fresh "import" with the env var set
-    assert em_database.get_data_dir() == str(tmp_path / "fromenv")
+    assert em_database.get_data_dir() == tmp_path / "fromenv"

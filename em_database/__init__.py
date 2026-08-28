@@ -105,7 +105,7 @@ class _EmDatabaseModule(_ModuleType):
                     "em_database.browse()."
                 )
             }
-        return widget._repr_mimebundle_(include=include, exclude=exclude, **kwargs)
+        return widget._repr_mimebundle_(**kwargs)
 
 
 _sys.modules[__name__].__class__ = _EmDatabaseModule
