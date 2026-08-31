@@ -15,6 +15,7 @@ tests all read the same directory the same way.
 from __future__ import annotations
 
 import difflib
+import textwrap
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -30,6 +31,9 @@ VENDORS_PATH = DATASETS_DIR / "vendors.yaml"
 NON_DATASET_FILES = frozenset({VENDORS_PATH.name})
 
 REQUIRED_FIELDS = ("description", "source", "file")
+
+# Wrap width for __str__; narrow enough to stay readable in a notebook cell.
+_STR_WIDTH = 88
 
 
 def dataset_files() -> list[Path]:
@@ -127,12 +131,17 @@ class Author:
         return cls(affiliation=str(spec["affiliation"]), orcid=spec.get("orcid"))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class DatasetMetadata:
     """Everything a dataset YAML entry declares.
 
     Field order matches ``json-schema.json``; a test asserts the two stay in
     step.
+
+    ``repr=False`` because the generated one runs to about a thousand
+    characters - nearly all of it the description - which is no use as the
+    output of a bare ``ds.metadata`` in a notebook. :meth:`__repr__` identifies
+    the record in one line; ``print(ds.metadata)`` gives the readable form.
     """
 
     description: str
@@ -189,3 +198,47 @@ class DatasetMetadata:
     def size(self) -> str:
         """:attr:`size_bytes` formatted for display, or ``""`` if unknown."""
         return format_size(self.size_bytes)
+
+    def __repr__(self) -> str:
+        """One line naming the file, what it is and how big: enough to tell two
+        records apart in a list without printing a paragraph of description."""
+        headline = " · ".join(p for p in (self.file, self.technique, self.size) if p)
+        return f"<{type(self).__name__} {headline}>"
+
+    def __str__(self) -> str:
+        """The whole record, wrapped, with the empty fields left out."""
+        headline = " · ".join(p for p in (self.file, self.technique, self.size) if p)
+        head = [headline]
+        if self.description:
+            head.append(textwrap.fill(self.description, width=_STR_WIDTH))
+
+        rows: list[tuple[str, str]] = []
+        for entry in fields(self):
+            if entry.name in ("description", "file", "technique", "size_bytes"):
+                continue  # in the headline already, or shown as size_bytes below
+            value = getattr(self, entry.name)
+            if not value:
+                continue
+            if entry.name == "authors":
+                value = "; ".join(f"{n} ({a.affiliation})" for n, a in value.items())
+            elif entry.name == "tags":
+                value = ", ".join(value)
+            rows.append((entry.name, str(value)))
+        if self.size_bytes is not None:
+            rows.append(("size_bytes", f"{self.size_bytes} ({self.size})"))
+
+        label_width = max((len(name) for name, _ in rows), default=0)
+        body = [
+            textwrap.fill(
+                value,
+                width=_STR_WIDTH,
+                initial_indent=f"{name:>{label_width}}: ",
+                subsequent_indent=" " * (label_width + 2),
+                # A URL or a checksum is one long token: overrun the width
+                # rather than split it, so it can still be copied.
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+            for name, value in rows
+        ]
+        return "\n\n".join(part for part in ("\n".join(head), "\n".join(body)) if part)

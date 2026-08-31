@@ -126,6 +126,8 @@ function render({ model, el: root }) {
     // `item.search` is a lowercased blob of every field (name, description,
     // detector, microscope, tags, authors + affiliations, license, …), so a
     // query like "Carter Francis" matches on author, not just the name.
+    // em_database.search() matches this same blob by this same rule; matching
+    // stays here rather than in the kernel so typing never waits on a round trip.
     const blob = item.search || item.name.toLowerCase();
     return state.search.toLowerCase().split(/\s+/).every((term) => blob.includes(term));
   }

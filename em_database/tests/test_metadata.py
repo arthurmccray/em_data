@@ -158,3 +158,67 @@ def test_vendors_yaml_covers_what_the_datasets_declare():
     for field in ("detector_manufacturer", "microscope_vendor"):
         declared = {spec[field] for _, _, spec in ENTRIES if spec.get(field)}
         assert declared <= set(VENDORS[field])
+
+
+def _record(**overrides):
+    spec = {
+        "description": "A description.",
+        "source": "https://example.com/files",
+        "file": "d.zspy",
+    }
+    return DatasetMetadata.from_spec({**spec, **overrides})
+
+
+def test_repr_is_one_short_identifying_line():
+    """The generated dataclass repr is ~1000 chars of mostly description, which
+    is useless as the output of a bare `ds.metadata` in a notebook."""
+    metadata = _record(technique="4D-STEM", size_bytes=12492298)
+    text = repr(metadata)
+    assert "\n" not in text
+    assert len(text) < 100
+    assert text == "<DatasetMetadata d.zspy · 4D-STEM · 12.5 MB>"
+    assert "A description." not in text
+
+
+def test_repr_drops_the_parts_it_does_not_have():
+    assert repr(_record()) == "<DatasetMetadata d.zspy>"
+
+
+def test_str_shows_the_record_and_omits_empty_fields():
+    metadata = _record(technique="EELS", license="CC-BY-4.0", tags=["One", "Two"])
+    text = str(metadata)
+    assert "A description." in text
+    assert "license: CC-BY-4.0" in text
+    assert "tags: One, Two" in text
+    assert "checksum" not in text  # not set, so not shown
+    assert "camera_length" not in text
+
+
+def test_str_shows_bytes_and_the_readable_size_together():
+    assert "size_bytes: 12492298 (12.5 MB)" in str(_record(size_bytes=12492298))
+
+
+def test_str_formats_authors_with_affiliations():
+    metadata = _record(authors={"Jane Doe": {"affiliation": "Somewhere"}})
+    assert "authors: Jane Doe (Somewhere)" in str(metadata)
+
+
+def test_str_never_breaks_a_url_across_lines():
+    """A wrapped URL cannot be copied, so long tokens overrun the width instead."""
+    url = "https://raw.githubusercontent.com/hyperspy/exspy-demos/927d1f21b3b8aba4e2e622c2e621d3d9d5542d1c/EELS/datasets"
+    assert url in str(_record(source=url))
+
+
+def test_str_wraps_a_long_value_under_its_label():
+    tags = [f"Tag Number {n}" for n in range(12)]
+    lines = str(_record(tags=tags)).splitlines()
+    tag_lines = [line for line in lines if "Tag Number" in line]
+    assert len(tag_lines) > 1  # wrapped
+    assert all(len(line) <= 88 for line in tag_lines)
+    assert tag_lines[1].startswith(" " * 8)  # continuation is indented under the label
+
+
+def test_str_without_a_description():
+    text = str(DatasetMetadata(description="", source="https://example.com", file="d.zspy"))
+    assert text.startswith("d.zspy\n\n")
+    assert "source: https://example.com" in text
