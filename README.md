@@ -88,11 +88,16 @@ from the top-level key:
 MyDataset:
   description: What the data is, how it was acquired and how it is calibrated.
   source: https://zenodo.org/records/<record>/files
-  checksum: md5:<hash>
   file: MyDataset.zspy
-  data_size: 1.2 GB
+  checksum: md5:<hash>
+  size_bytes: 1200000000
   technique: 4D-STEM
   license: CC-BY-4.0
 ```
+
+`size_bytes` is the file's `Content-Length` in bytes; the test suite checks it against
+the server on every run. `em_database/datasets/vendors.yaml` lists the microscope
+vendors and detector manufacturers already in use - a new one is fine, but a name close
+to one already on the list fails CI as a misspelling.
 
 Open an issue with the new dataset template, or add the YAML file directly.

@@ -6,6 +6,8 @@ from typing import Any, ClassVar, Protocol
 
 import pooch
 
+from em_database.metadata import DatasetMetadata
+
 
 class Progress(Protocol):
     """What pooch drives while streaming a file, and what the widgets provide."""
@@ -136,29 +138,48 @@ class DownloadableDataset:
 
     The generated subclasses in :mod:`em_database.data` carry their entry as
     ``_spec``; keyword arguments override it for a single instance.
+
+    Everything the YAML declares is on :attr:`metadata`
+    (``ds.metadata.technique``). The four fields the download machinery itself
+    needs are also reachable directly, as :attr:`source`, :attr:`file`,
+    :attr:`checksum` and :attr:`size_bytes`.
     """
 
     _spec: ClassVar[dict[str, Any]] = {}
+    _origin: ClassVar[Path | None] = None
+    # Built when the class is, so a malformed YAML fails the import that reads
+    # it rather than making the dataset quietly disappear from the catalogue.
+    _metadata: ClassVar[DatasetMetadata | None] = None
 
     def __init__(self, **overrides: Any):
-        spec = {**self._spec, **overrides}
-        try:
-            self.source = spec.pop("source")
-            self.file = spec.pop("file")
-        except KeyError as error:
-            raise TypeError(f"a dataset needs a {error} entry") from None
-        self.checksum = spec.pop("checksum", None)
-        self.license = spec.pop("license", None)
-        self.quality = spec.pop("quality", None)
-        self.doi = spec.pop("doi", None)
-        self.data_size = spec.pop("data_size", None)
-        self.description = spec.pop("description", None)
-        self.detector_manufacturer = spec.pop("detector_manufacturer", None)
-        self.detector = spec.pop("detector", None)
-        self.metadata = spec
+        if self._metadata is not None and not overrides:
+            self.metadata = self._metadata
+        else:
+            self.metadata = DatasetMetadata.from_spec({**self._spec, **overrides}, self._origin)
+
+    @property
+    def source(self) -> str:
+        return self.metadata.source
+
+    @property
+    def file(self) -> str:
+        return self.metadata.file
+
+    @property
+    def checksum(self) -> str | None:
+        return self.metadata.checksum
+
+    @property
+    def size_bytes(self) -> int | None:
+        return self.metadata.size_bytes
+
+    @property
+    def size(self) -> str:
+        """:attr:`size_bytes` formatted for display, or ``""`` if unknown."""
+        return self.metadata.size
 
     def __repr__(self):
-        return f"<{self.__class__} url={self.source}/{self.file} bytes={self.data_size}>"
+        return f"<{self.__class__} url={self.source}/{self.file} size={self.size}>"
 
     def _repr_mimebundle_(self, **kwargs):
         """Rich display in Jupyter: an interactive card with download/metadata.

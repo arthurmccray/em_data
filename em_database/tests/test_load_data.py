@@ -68,6 +68,14 @@ def test_source_url_resolves(name):
     except urllib.error.URLError as error:  # pragma: no cover - transient
         pytest.skip(f"{name}: network unavailable ({error.reason})")
     assert response.status == 200, f"{name}: {url} returned {response.status}"
+    # The header the declared size came from. Checking it also catches the
+    # source file being replaced, which is otherwise invisible until someone's
+    # checksum fails.
+    length = response.headers.get("Content-Length")
+    if length is not None and dataset.size_bytes is not None:
+        assert int(length) == dataset.size_bytes, (
+            f"{name}: {url} is {int(length)} bytes, but the YAML declares {dataset.size_bytes}"
+        )
 
 
 @pytest.mark.parametrize("name", ALL_DATASETS)
@@ -76,10 +84,11 @@ def test_metadata_is_complete(name):
     dataset = getattr(data, name)()
     assert dataset.source, f"{name} has no source"
     assert dataset.file, f"{name} has no file"
-    assert dataset.description, f"{name} has no description"
+    assert dataset.metadata.description, f"{name} has no description"
     assert dataset.checksum and dataset.checksum.startswith("md5:"), (
         f"{name} has no md5 checksum, so a corrupt or truncated download would go unnoticed"
     )
+    assert dataset.size_bytes, f"{name} has no size_bytes"
 
 
 def test_download_verifies_checksum(tmp_path):
@@ -204,8 +213,7 @@ def test_a_dataset_without_a_source_is_an_error():
 
 def test_download_handle_propagates_errors(tmp_path):
     """A failed background download raises when the handle is consumed."""
-    dataset = getattr(data, TINY_DATASET)()
-    dataset.checksum = "md5:" + "0" * 32
+    dataset = getattr(data, TINY_DATASET)(checksum="md5:" + "0" * 32)
     handle = dataset.download(destination=tmp_path, progressbar=False)
     with pytest.raises(Exception):
         os.fspath(handle)
@@ -223,8 +231,7 @@ def test_download_is_cached(tmp_path):
 
 def test_download_rejects_a_bad_checksum(tmp_path):
     """A wrong checksum must raise rather than hand back the file."""
-    dataset = getattr(data, TINY_DATASET)()
-    dataset.checksum = "md5:" + "0" * 32
+    dataset = getattr(data, TINY_DATASET)(checksum="md5:" + "0" * 32)
     with pytest.raises(Exception):
         dataset.download(destination=tmp_path, progressbar=False, background=False)
 

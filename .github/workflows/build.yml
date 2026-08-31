@@ -33,6 +33,9 @@ jobs:
       - name: basedpyright
         run: basedpyright
 
+      - name: dataset stub is current
+        run: python -m em_database._create_stubs --check
+
   build-with-pip:
     name: ${{ matrix.os }}-py${{ matrix.python-version }}${{ matrix.LABEL }}
     runs-on: ${{ matrix.os }}

@@ -14,6 +14,7 @@ import inspect
 from pathlib import Path
 
 from em_database.downloadable_dataset import DownloadableDataset
+from em_database.metadata import DatasetMetadata
 
 # Techniques in the order the browser should show them - the modalities the
 # collection is built around first, then anything else alphabetically.
@@ -56,46 +57,12 @@ def resolve(name: str) -> DownloadableDataset | None:
     return obj()
 
 
-def _technique(ds) -> str:
-    md = getattr(ds, "metadata", None) or {}
-    return str(md.get("technique") or "Other").strip() or "Other"
+def _technique(md: DatasetMetadata) -> str:
+    return (md.technique or "Other").strip() or "Other"
 
 
 def _join(*parts) -> str:
     return " ".join(str(p).strip() for p in parts if p and str(p).strip())
-
-
-def _declared_shape(ds) -> str | None:
-    """The shape em-database declares in the dataset's YAML, if it does.
-
-    Only declared shapes are used - reading it out of a downloaded file would
-    mean opening the file (and depending on a reader), which the catalogue
-    deliberately never does.
-    """
-    md = getattr(ds, "metadata", None) or {}
-    for source in (md, ds):
-        for attr in ("shape", "data_shape"):
-            val = source.get(attr) if isinstance(source, dict) else getattr(source, attr, None)
-            if val:
-                return val.strip() if isinstance(val, str) else "×".join(str(v) for v in val)
-    return None
-
-
-def _authors(md) -> tuple[list[str], list[str]]:
-    """``(names, affiliations)`` from the dataset's ``authors`` metadata.
-
-    Authors are usually ``{name: {affiliation: ...}}``; also tolerate a plain
-    list of names.
-    """
-    authors = md.get("authors")
-    if isinstance(authors, dict):
-        names = list(authors.keys())
-        affiliations = []
-        for value in authors.values():
-            if isinstance(value, dict) and value.get("affiliation"):
-                affiliations.append(str(value["affiliation"]))
-        return names, affiliations
-    return [str(a) for a in (authors or [])], []
 
 
 def _location(path: Path | None) -> str | None:
@@ -111,30 +78,28 @@ def _location(path: Path | None) -> str | None:
 
 def entry(name: str, ds: DownloadableDataset) -> dict:
     """One catalogue row - everything the browser draws for a dataset."""
-    md = getattr(ds, "metadata", None) or {}
+    md = ds.metadata
     try:
         path = ds.filepath()
     except Exception:
         path = None
-    names, affiliations = _authors(md)
     row = {
         "name": name,
-        "technique": _technique(ds),
-        "size": str(getattr(ds, "data_size", "") or ""),
-        "shape": _declared_shape(ds),
+        "technique": _technique(md),
+        "size": md.size,
         "downloaded": path is not None,
         "location": _location(path),
         "path": str(path) if path else "",
-        "description": str(getattr(ds, "description", "") or ""),
-        "detector": _join(getattr(ds, "detector_manufacturer", ""), getattr(ds, "detector", "")),
-        "microscope": _join(md.get("microscope_vendor"), md.get("microscope_model")),
-        "voltage": str(md.get("voltage") or ""),
-        "tags": [str(t) for t in (md.get("tags") or [])],
-        "authors": names,
-        "license": str(getattr(ds, "license", "") or ""),
-        "doi": str(getattr(ds, "doi", "") or ""),
-        "source": str(getattr(ds, "source", "") or ""),
-        "file": str(getattr(ds, "file", "") or ""),
+        "description": md.description,
+        "detector": _join(md.detector_manufacturer, md.detector),
+        "microscope": _join(md.microscope_vendor, md.microscope_model),
+        "voltage": md.voltage or "",
+        "tags": list(md.tags),
+        "authors": list(md.authors),
+        "license": md.license or "",
+        "doi": md.doi or "",
+        "source": md.source,
+        "file": md.file,
     }
     # One lowercased blob the search box matches against, so a query like
     # "Carter Francis" (an author) or "Direct Electron" (an affiliation) finds
@@ -149,10 +114,9 @@ def entry(name: str, ds: DownloadableDataset) -> dict:
         row["license"],
         row["doi"],
         row["file"],
-        row["shape"] or "",
         " ".join(row["tags"]),
-        " ".join(names),
-        " ".join(affiliations),
+        " ".join(row["authors"]),
+        " ".join(a.affiliation for a in md.authors.values()),
     ]
     row["search"] = " ".join(str(s) for s in searchable if s).lower()
     return row

@@ -4,12 +4,16 @@ from pathlib import Path
 
 import yaml
 
+from em_database.metadata import NON_DATASET_FILES, load_vendors
+
 
 def parse_datasets(yaml_dir):
     """Parse all YAML files and organize by technique."""
     datasets_by_technique = defaultdict(list)
 
-    for yaml_file in Path(yaml_dir).glob("*.yaml"):
+    for yaml_file in sorted(Path(yaml_dir).glob("*.yaml")):
+        if yaml_file.name in NON_DATASET_FILES:
+            continue
         with open(yaml_file, "r") as f:
             data = yaml.safe_load(f)
 
@@ -857,16 +861,9 @@ def generate_all_data_html() -> str:
 
 # -- Add Dataset page --------------------------------------------------------
 
-_MANUFACTURERS = (
-    "Gatan",
-    "Thermo Fisher Scientific",
-    "Direct Electron",
-    "Dectris",
-    "Quantum Detectors",
-    "TVIPS",
-    "Other",
-)
-_VENDORS = ("Thermo Fisher Scientific", "JEOL", "Hitachi", "Zeiss", "Other")
+_VENDOR_LISTS = load_vendors()
+_MANUFACTURERS = tuple(_VENDOR_LISTS["detector_manufacturer"])
+_VENDORS = tuple(_VENDOR_LISTS["microscope_vendor"])
 _TECHNIQUES = ("4D-STEM", "EELS", "EDS", "EBSD", "STEM", "In-situ TEM", "Cryo-EM", "Other")
 
 # Owner/repo the prefilled "create new file" PR link targets.
@@ -914,6 +911,30 @@ def _select_field(fid, label, options, hint=""):
         + '">'
         + opts
         + "</select>"
+        '<div class="field-err" id="err-' + fid + '"></div></div>'
+    )
+
+
+def _datalist_field(fid, label, options, placeholder="", hint=""):
+    """A free-text field with suggestions - the open-string vendor lists."""
+    hn = '<div class="field-hint">' + _esc(hint) + "</div>" if hint else ""
+    ph = ' placeholder="' + _esc(placeholder) + '"' if placeholder else ""
+    opts = "".join('<option value="' + _esc(o) + '">' for o in options)
+    return (
+        '<div class="field"><label for="'
+        + fid
+        + '">'
+        + _esc(label)
+        + "</label>"
+        + hn
+        + '<input id="'
+        + fid
+        + '" type="text" list="'
+        + fid
+        + '-list"'
+        + ph
+        + ">"
+        '<datalist id="' + fid + '-list">' + opts + "</datalist>"
         '<div class="field-err" id="err-' + fid + '"></div></div>'
     )
 
@@ -970,10 +991,25 @@ def generate_add_dataset_html() -> str:
             placeholder="md5:df9376d5c020a23f0f7f51cfe79f303f",
             hint="md5:<32 hex chars>",
         )
-        + _text_field("f-data_size", "Data Size", placeholder="1.4 GB")
-        + _select_field("f-detector_manufacturer", "Detector Manufacturer", _MANUFACTURERS)
+        + _text_field(
+            "f-size_bytes",
+            "Size (bytes)",
+            placeholder="1104287335",
+            hint="The file's Content-Length, in bytes.",
+        )
+        + _datalist_field(
+            "f-detector_manufacturer",
+            "Detector Manufacturer",
+            _MANUFACTURERS,
+            placeholder="Direct Electron",
+        )
         + _text_field("f-detector", "Detector", placeholder="CeleritasXS")
-        + _select_field("f-microscope_vendor", "Microscope Vendor", _VENDORS)
+        + _datalist_field(
+            "f-microscope_vendor",
+            "Microscope Vendor",
+            _VENDORS,
+            placeholder="Thermo Fisher Scientific",
+        )
         + _text_field("f-microscope_model", "Microscope Model", placeholder="Gen 1 Titan")
         + _text_field("f-camera_length", "Camera Length", placeholder="e.g. 100 mm")
         + _text_field("f-voltage", "Voltage", placeholder="200 kV", hint="e.g. 200 kV")
@@ -1092,7 +1128,8 @@ _ADD_DATASET_JS = r"""
     add("source", val("f-source"));
     add("checksum", val("f-checksum"));
     add("file", val("f-file"));
-    add("data_size", val("f-data_size"));
+    var bytes = val("f-size_bytes").replace(/[^0-9]/g, "");
+    if (bytes) { lines.push("  size_bytes: " + bytes); }
     add("detector_manufacturer", val("f-detector_manufacturer"));
     add("detector", val("f-detector"));
     add("microscope_vendor", val("f-microscope_vendor"));
