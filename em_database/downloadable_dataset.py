@@ -1,4 +1,5 @@
 import os
+import sys
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
@@ -131,6 +132,60 @@ class DatasetPath(_ConcretePath):
     def __repr__(self) -> str:  # never block just to display the object
         state = "done" if self.done else "downloading"
         return f"<DatasetPath {str(self)!r} [{state}]>"
+
+
+class _TqdmProgress:
+    """A tqdm bar for a pooch download, created only once bytes start arriving.
+
+    Two reasons not to let pooch build its own. It passes ``ncols=79``, meaning
+    79 *terminal columns*, but tqdm's notebook backend reads ``ncols`` as a
+    pixel width and sets ``layout.width = "79px"`` - a bar squashed to 79 pixels
+    with its own horizontal scrollbar. And ``pooch.retrieve`` skips the
+    downloader entirely for a file that is already cached, so building the bar
+    up front would flash an empty one on every cached call; pooch assigns
+    ``total`` exactly once, before streaming, which is the moment there is
+    something worth showing.
+    """
+
+    def __init__(self, desc: str = "") -> None:
+        self._desc = desc
+        self._bar: Any = None  # a tqdm.auto bar; which backend depends on the host
+        self._total = 0
+
+    @property
+    def total(self) -> int:
+        return self._total
+
+    @total.setter
+    def total(self, value: int) -> None:
+        from tqdm.auto import tqdm
+
+        self._total = int(value or 0)
+        if self._bar is None:
+            self._bar = tqdm(
+                total=self._total,
+                desc=self._desc,
+                unit="B",
+                unit_scale=True,
+                # Windows terminals do not always have the box-drawing glyphs.
+                ascii=sys.platform == "win32",
+                leave=True,
+            )
+        else:
+            self._bar.reset(total=self._total)
+
+    def update(self, n: int) -> None:
+        if self._bar is not None:
+            self._bar.update(n)
+
+    def reset(self) -> None:
+        if self._bar is not None:
+            self._bar.reset(total=self._total)
+
+    def close(self) -> None:
+        if self._bar is not None:
+            self._bar.close()
+            self._bar = None
 
 
 class DownloadableDataset:
@@ -280,12 +335,15 @@ class DownloadableDataset:
         as-is (never re-downloaded); otherwise pooch downloads into the user's
         data directory.
         """
-        if progressbar:
+        if progressbar is True:
             try:
                 import tqdm  # noqa: F401
             except ImportError:
                 print("`tqdm` is not installed, progress bar will be disabled.")
                 progressbar = False
+            else:
+                # Our own bar rather than pooch's; see _TqdmProgress.
+                progressbar = _TqdmProgress(self.file)
         if destination is None:
             shared = self._find_shared()
             if shared is not None:
@@ -300,13 +358,19 @@ class DownloadableDataset:
             chunk_size=chunk_size,
             headers=headers,
         )
-        filepath = pooch.retrieve(
-            url=self.source + "/" + self.file,
-            known_hash=self.checksum,
-            fname=self.file,
-            path=destination,
-            downloader=downloader,  # pyright: ignore[reportArgumentType]
-        )
+        try:
+            filepath = pooch.retrieve(
+                url=self.source + "/" + self.file,
+                known_hash=self.checksum,
+                fname=self.file,
+                path=destination,
+                downloader=downloader,  # pyright: ignore[reportArgumentType]
+            )
+        finally:
+            # pooch only closes the bar on the happy path, so a failed or
+            # cancelled download would leave it hanging open.
+            if isinstance(progressbar, _TqdmProgress):
+                progressbar.close()
         return Path(filepath)
 
     def _find_shared(self) -> Path | None:
@@ -319,18 +383,27 @@ class DownloadableDataset:
                 return candidate
         return None
 
+    def filepaths(self) -> list[Path]:
+        """Every copy of the dataset on disk, in search order.
+
+        A dataset can be in more than one place at once - a shared install and
+        your own download of the same file - and which one gets used is only a
+        matter of the search order. :meth:`filepath` returns the winner; this
+        returns all of them, so a caller can tell the difference between the
+        one copy that is shared and a shared copy that you also have your own
+        of.
+        """
+        from em_database import config
+
+        return [d / self.file for d in config.data_search_dirs() if (d / self.file).exists()]
+
     def filepath(self) -> Path | None:
         """Return the local file path of the dataset if present.
 
         Looks in the shared/system data locations first, then the user's data
         directory. Returns None if the dataset is not downloaded anywhere."""
-        from em_database import config
-
-        for directory in config.data_search_dirs():
-            candidate = directory / self.file
-            if candidate.exists():
-                return candidate
-        return None
+        found = self.filepaths()
+        return found[0] if found else None
 
     def delete(self, destination: str | None = None) -> bool:
         """Delete the downloaded file if it is present.

@@ -125,10 +125,16 @@ function render({ model, el: root }) {
     if (downloading) {
       status.appendChild(el("span", "emdb-d-badge", "downloading…"));
     } else if (it.downloaded && it.location === "shared") {
-      const badge = el("span", "emdb-d-badge shared", "● shared");
-      badge.title = "installed system-wide: " + it.path;
+      const badge = el("span", "emdb-d-badge shared", it.user_path ? "● shared + yours" : "● shared");
+      badge.title = "installed system-wide: " + it.path
+        + (it.user_path ? "\nyour copy: " + it.user_path : "");
       status.appendChild(badge);
-      status.appendChild(el("span", "emdb-d-note", "installed for every user, not yours to delete"));
+      if (it.user_path) {
+        const del = el("button", "emdb-delete", "Delete yours");
+        del.title = "Remove your copy (" + it.user_path + "). The shared one stays.";
+        del.addEventListener("click", () => cmd("delete"));
+        status.appendChild(del);
+      }
     } else if (it.downloaded) {
       status.appendChild(el("span", "emdb-d-badge on", "● downloaded"));
       const del = el("button", "emdb-delete", "Delete");

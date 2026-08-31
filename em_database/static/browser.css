@@ -139,7 +139,6 @@
 .emdb-d-badge { font-size: 11.5px; color: var(--emdb-subtext); }
 .emdb-d-badge.on { color: var(--emdb-green); font-weight: 600; }
 .emdb-d-badge.shared { color: var(--emdb-blue); font-weight: 600; }
-.emdb-d-note { font-size: 11px; color: var(--emdb-muted); }
 .emdb-delete {
   cursor: pointer; font-family: var(--emdb-font); font-size: 11px; font-weight: 600;
   color: var(--emdb-red); background: transparent;

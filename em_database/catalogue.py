@@ -80,9 +80,14 @@ def entry(name: str, ds: DownloadableDataset) -> dict:
     """One catalogue row - everything the browser draws for a dataset."""
     md = ds.metadata
     try:
-        path = ds.filepath()
+        found = ds.filepaths()
     except Exception:
-        path = None
+        found = []
+    path = found[0] if found else None
+    # The copy in the user's own directory, which may sit behind a shared one in
+    # the search order. It is the only copy delete() will touch, so the widgets
+    # need it to know whether there is anything to offer deleting.
+    user_path = next((p for p in found if _location(p) == "user"), None)
     row = {
         "name": name,
         "technique": _technique(md),
@@ -90,6 +95,7 @@ def entry(name: str, ds: DownloadableDataset) -> dict:
         "downloaded": path is not None,
         "location": _location(path),
         "path": str(path) if path else "",
+        "user_path": str(user_path) if user_path else "",
         "description": md.description,
         "detector": _join(md.detector_manufacturer, md.detector),
         "microscope": _join(md.microscope_vendor, md.microscope_model),

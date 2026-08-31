@@ -25,6 +25,7 @@ from em_database.downloadable_dataset import (
     DatasetPath,
     DownloadableDataset,
     _pending_key,
+    _TqdmProgress,
 )
 
 try:
@@ -257,3 +258,55 @@ def test_quantem_loading(tmp_path):
     dataset = MgONanoCrystals()
     file_path = dataset.download(destination=tmp_path, progressbar=False, background=False)
     read_4dstem(file_path)
+
+
+def test_tqdm_bar_waits_for_pooch_to_set_a_total():
+    """pooch skips the downloader for a cached file, so the bar must be lazy."""
+    progress = _TqdmProgress("demo")
+    assert progress._bar is None  # nothing shown yet
+    progress.total = 100
+    assert progress._bar is not None
+    progress.update(50)
+    assert progress._bar.n == 50
+    progress.reset()
+    progress.update(100)
+    assert progress._bar.n == 100
+    progress.close()
+    assert progress._bar is None
+
+
+def test_tqdm_bar_is_not_squashed_to_79_pixels(monkeypatch):
+    """pooch passes ncols=79 meaning terminal columns, but tqdm's notebook
+    backend reads ncols as a pixel width - a bar 79 pixels wide, which is where
+    the horizontal scrollbar in Jupyter comes from. Ours passes no ncols."""
+    notebook_tqdm = pytest.importorskip("tqdm.notebook")
+
+    squashed = notebook_tqdm.tqdm(total=1000, ncols=79)
+    assert squashed.container.layout.width == "79px"  # what pooch produces
+    squashed.close()
+
+    # _TqdmProgress builds through tqdm.auto; force the notebook backend so the
+    # widget layout is the thing under test rather than the terminal one.
+    monkeypatch.setattr("tqdm.auto.tqdm", notebook_tqdm.tqdm)
+    progress = _TqdmProgress("demo")
+    progress.total = 1000
+    assert progress._bar.container.layout.width is None  # ipywidgets default
+    progress.close()
+
+
+def test_progressbar_true_is_swapped_for_our_own_bar(tmp_path, monkeypatch):
+    """`progressbar=True` must reach pooch as a Progress object, not as True."""
+    seen = {}
+
+    def fake_retrieve(**kwargs):
+        seen["downloader"] = kwargs["downloader"]
+        target = tmp_path / kwargs["fname"]
+        target.write_bytes(b"payload")
+        return str(target)
+
+    monkeypatch.setattr("pooch.retrieve", fake_retrieve)
+    dataset = getattr(data, TINY_DATASET)()
+    dataset._retrieve(destination=tmp_path, progressbar=True)
+
+    assert isinstance(seen["downloader"].progressbar, _TqdmProgress)
+    assert seen["downloader"].progressbar is not True

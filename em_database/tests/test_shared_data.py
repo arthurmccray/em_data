@@ -67,3 +67,59 @@ def test_system_config_file_contributes_shared_dirs(tmp_path, monkeypatch):
     system_file.write_text(f"data_dir: {tmp_path / 'sitewide'}\n", encoding="utf-8")
     monkeypatch.setenv("EM_DATABASE_SYSTEM_CONFIG", str(system_file))
     assert tmp_path / "sitewide" in config.shared_data_dirs()
+
+
+def test_filepaths_reports_every_copy(tmp_path, monkeypatch):
+    """A shared install and your own download of the same file coexist."""
+    shared, user = tmp_path / "shared", tmp_path / "user"
+    shared.mkdir()
+    user.mkdir()
+    monkeypatch.setenv("EM_DATABASE_SHARED_DIR", str(shared))
+    em_database.set_data_dir(str(user), persist=False)
+
+    ds = _dataset()
+    assert ds.filepaths() == []
+    (shared / ds.file).write_bytes(b"shared")
+    assert ds.filepaths() == [shared / ds.file]
+    (user / ds.file).write_bytes(b"user")
+    assert ds.filepaths() == [shared / ds.file, user / ds.file]
+    assert ds.filepath() == shared / ds.file  # the winner is still the shared one
+
+
+def test_entry_exposes_a_user_copy_hiding_behind_a_shared_one(tmp_path, monkeypatch):
+    """The widget needs to see the copy delete() would remove, not just the winner."""
+    shared, user = tmp_path / "shared", tmp_path / "user"
+    shared.mkdir()
+    user.mkdir()
+    monkeypatch.setenv("EM_DATABASE_SHARED_DIR", str(shared))
+    em_database.set_data_dir(str(user), persist=False)
+
+    ds = _dataset()
+    (shared / ds.file).write_bytes(b"shared")
+    row = catalogue.entry(TINY_DATASET, ds)
+    assert row["location"] == "shared"
+    assert row["user_path"] == ""  # nothing of yours to delete
+
+    (user / ds.file).write_bytes(b"user")
+    row = catalogue.entry(TINY_DATASET, ds)
+    assert row["location"] == "shared"  # the shared copy is still the one in use
+    assert row["user_path"] == str(user / ds.file)
+
+    assert ds.delete() is True  # deletes yours
+    row = catalogue.entry(TINY_DATASET, ds)
+    assert row["user_path"] == ""
+    assert (shared / ds.file).exists()  # the shared copy is untouched
+    assert row["downloaded"] is True  # and still resolves
+
+
+def test_entry_user_path_when_there_is_no_share(tmp_path, monkeypatch):
+    user = tmp_path / "user"
+    user.mkdir()
+    monkeypatch.delenv("EM_DATABASE_SHARED_DIR", raising=False)
+    em_database.set_data_dir(str(user), persist=False)
+
+    ds = _dataset()
+    (user / ds.file).write_bytes(b"user")
+    row = catalogue.entry(TINY_DATASET, ds)
+    assert row["location"] == "user"
+    assert row["user_path"] == str(user / ds.file)

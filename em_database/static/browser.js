@@ -205,7 +205,7 @@ function render({ model, el: root }) {
     const row = el("div", "emdb-row" + (state.selected === item.name ? " selected" : ""));
     const meta = [item.size, item.shape].filter(Boolean).join("  ·  ");
     const glyph = el("span", "emdb-glyph " + glyphClass(item), item.downloaded ? "●" : "○");
-    if (item.location === "shared") glyph.title = "installed system-wide: " + item.path;
+    if (item.location === "shared") glyph.title = sharedTitle(item);
     row.appendChild(glyph);
     row.appendChild(el("span", "emdb-name", esc(item.name)));
     row.appendChild(el("span", "emdb-meta", esc(meta)));
@@ -214,6 +214,13 @@ function render({ model, el: root }) {
     row.addEventListener("mouseenter", () => { state.hovered = item.name; drawDetails(); });
     row.addEventListener("click", () => { state.selected = item.name; drawList(); });
     return row;
+  }
+
+  // A shared copy and your own can both exist; the tooltip names each.
+  function sharedTitle(item) {
+    const lines = ["installed system-wide: " + item.path];
+    if (item.user_path) lines.push("your copy: " + item.user_path);
+    return lines.join("\n");
   }
 
   function glyphClass(item) {
@@ -258,10 +265,15 @@ function render({ model, el: root }) {
     // status / action line
     const statusRow = el("div", "emdb-d-status");
     if (item.downloaded && item.location === "shared") {
-      const badge = el("span", "emdb-d-badge shared", "● shared");
-      badge.title = "installed system-wide: " + item.path;
+      const badge = el("span", "emdb-d-badge shared", item.user_path ? "● shared + yours" : "● shared");
+      badge.title = sharedTitle(item);
       statusRow.appendChild(badge);
-      statusRow.appendChild(el("span", "emdb-d-note", "installed for every user, not yours to delete"));
+      if (item.user_path) {
+        const del = el("button", "emdb-delete", "Delete yours");
+        del.title = "Remove your copy (" + item.user_path + "). The shared one stays.";
+        del.addEventListener("click", () => cmd("delete", { name: item.name }));
+        statusRow.appendChild(del);
+      }
     } else if (item.downloaded) {
       statusRow.appendChild(el("span", "emdb-d-badge on", "● downloaded"));
       const del = el("button", "emdb-delete", "Delete");
