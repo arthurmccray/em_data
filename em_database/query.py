@@ -3,6 +3,10 @@
 The browser widget has always had a search box; this is that search, callable,
 returning dataset objects rather than the dicts the widget draws.
 
+The module is ``query`` and not ``search`` so that it cannot collide with the
+:func:`search` function it exports: a submodule and a function of the same name
+both live in the ``em_database`` namespace, and importing the submodule wins.
+
 :func:`search` matches the same lowercased blob that
 :func:`em_database.catalogue.entry` builds for the widget, by the same rule -
 every whitespace-separated term has to appear somewhere - so a query typed into
@@ -39,11 +43,15 @@ FILTER_FIELDS = (
 )
 
 
-def datasets() -> list[DownloadableDataset]:
+def list_datasets() -> list[DownloadableDataset]:
     """Every dataset in the index, sorted by name.
 
+    Not ``datasets()``: ``em_database/datasets/`` is a subpackage, and the
+    import machinery overwrites a same-named attribute on the parent the moment
+    anything imports it - which Sphinx does, walking every submodule.
+
     >>> import em_database
-    >>> len(em_database.datasets()) > 0
+    >>> len(em_database.list_datasets()) > 0
     True
     """
     return [ds for _, ds in catalogue.datasets()]
@@ -60,7 +68,7 @@ def search(query: str) -> list[DownloadableDataset]:
     """
     terms = query.lower().split()
     if not terms:
-        return datasets()
+        return list_datasets()
     found = []
     for name, ds in catalogue.datasets():
         blob = catalogue.entry(name, ds)["search"]

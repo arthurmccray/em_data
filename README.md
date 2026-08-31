@@ -50,7 +50,7 @@ directly.
 ```python
 import em_database
 
-em_database.datasets()                                     # everything
+em_database.list_datasets()                                     # everything
 em_database.search("amorphous")                            # any field
 em_database.search("jeol eels")                            # all terms, any field
 em_database.filter(technique="4D-STEM", tags="Strain")     # exact, case-insensitive

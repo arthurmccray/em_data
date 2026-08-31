@@ -5,13 +5,15 @@ so ``downloaded`` / ``location`` here describe a tmp dir rather than whatever th
 developer happens to have downloaded.
 """
 
+import types
+
 import pytest
 
 import em_database
 from em_database import catalogue
 from em_database.data import BilayerWS2
 from em_database.downloadable_dataset import DownloadableDataset
-from em_database.search import FILTER_FIELDS
+from em_database.query import FILTER_FIELDS
 
 
 def names(found):
@@ -19,7 +21,7 @@ def names(found):
 
 
 def test_datasets_returns_objects_not_rows():
-    found = em_database.datasets()
+    found = em_database.list_datasets()
     assert found
     assert all(isinstance(ds, DownloadableDataset) for ds in found)
     assert names(found) == sorted(n for n, _ in catalogue.datasets())
@@ -59,7 +61,7 @@ def test_search_uses_the_same_blob_and_rule_as_the_widget():
 
 
 def test_empty_search_returns_everything():
-    assert names(em_database.search("   ")) == names(em_database.datasets())
+    assert names(em_database.search("   ")) == names(em_database.list_datasets())
 
 
 def test_search_with_no_hits_is_empty():
@@ -119,7 +121,7 @@ def test_filter_on_downloaded_and_location(tmp_path, monkeypatch):
     em_database.set_data_dir(str(user), persist=False)
 
     assert em_database.filter(downloaded=True) == []
-    assert names(em_database.filter(downloaded=False)) == names(em_database.datasets())
+    assert names(em_database.filter(downloaded=False)) == names(em_database.list_datasets())
 
     ds = BilayerWS2()
     (user / ds.file).write_bytes(b"mine")
@@ -133,6 +135,31 @@ def test_filter_on_downloaded_and_location(tmp_path, monkeypatch):
 
 
 def test_the_query_api_is_on_the_top_level_namespace():
-    for name in ("datasets", "search", "filter"):
+    for name in ("list_datasets", "search", "filter"):
         assert name in em_database.__all__
         assert callable(getattr(em_database, name))
+
+
+def test_public_names_survive_a_submodule_walk():
+    """A submodule and a top-level function cannot share a name.
+
+    Importing ``em_database.<name>`` makes the import machinery bind that
+    submodule onto the parent package, replacing any function of the same name.
+    Sphinx's autosummary walks every submodule, so this is not hypothetical - it
+    is what took the docs build down when the function was called ``datasets()``
+    next to the ``em_database/datasets/`` subpackage.
+    """
+    import importlib
+    import pkgutil
+
+    for found in pkgutil.walk_packages(em_database.__path__, "em_database."):
+        try:
+            importlib.import_module(found.name)
+        except ImportError:
+            continue  # an optional dependency, not a name clash
+
+    for name in em_database.__all__:
+        exported = getattr(em_database, name)
+        assert not isinstance(exported, types.ModuleType) or name in ("data", "settings"), (
+            f"em_database.{name} was replaced by a submodule of the same name"
+        )

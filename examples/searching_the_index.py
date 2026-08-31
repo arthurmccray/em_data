@@ -15,7 +15,7 @@ import em_database
 
 # %%
 # Every dataset in the index.
-print(len(em_database.datasets()), "datasets")
+print(len(em_database.list_datasets()), "datasets")
 
 # %%
 # ``search`` is the browser widget's search box, callable. It matches a

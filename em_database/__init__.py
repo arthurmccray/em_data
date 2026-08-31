@@ -2,7 +2,7 @@
 from em_database import data
 from em_database.config import settings
 from em_database.downloadable_dataset import DownloadableDataset
-from em_database.search import datasets, filter, search  # noqa: A004
+from em_database.query import filter, list_datasets, search  # noqa: A004
 
 __all__ = []
 
@@ -75,7 +75,7 @@ def browse(**kwargs):
 
 
 __all__ = [
-    "datasets",
+    "list_datasets",
     "search",
     "filter",
     "get_data_dir",
