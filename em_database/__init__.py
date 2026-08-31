@@ -2,6 +2,7 @@
 from em_database import data
 from em_database.config import settings
 from em_database.downloadable_dataset import DownloadableDataset
+from em_database.search import datasets, filter, search  # noqa: A004
 
 __all__ = []
 
@@ -74,6 +75,9 @@ def browse(**kwargs):
 
 
 __all__ = [
+    "datasets",
+    "search",
+    "filter",
     "get_data_dir",
     "set_data_dir",
     "reset_data_dir",
@@ -105,7 +109,7 @@ class _EmDatabaseModule(_ModuleType):
                     "em_database.browse()."
                 )
             }
-        return widget._repr_mimebundle_(include=include, exclude=exclude, **kwargs)
+        return widget._repr_mimebundle_(**kwargs)
 
 
 _sys.modules[__name__].__class__ = _EmDatabaseModule

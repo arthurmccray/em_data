@@ -35,6 +35,7 @@ def test_catalogue_groups_and_orders_by_technique():
 
 def test_catalogue_entry_has_expected_fields():
     ds = catalogue.resolve(TINY_DATASET)
+    assert ds is not None
     row = catalogue.entry(TINY_DATASET, ds)
     for key in (
         "name",
@@ -56,9 +57,26 @@ def test_catalogue_entry_has_expected_fields():
     assert isinstance(row["downloaded"], bool)
 
 
+def test_catalogue_entry_reports_where_the_file_came_from(tmp_path, monkeypatch):
+    shared, user = tmp_path / "shared", tmp_path / "user"
+    shared.mkdir()
+    user.mkdir()
+    monkeypatch.setenv("EM_DATABASE_SHARED_DIR", str(shared))
+    em_database.set_data_dir(str(user), persist=False)
+
+    ds = catalogue.resolve(TINY_DATASET)
+    assert ds is not None
+    assert catalogue.entry(TINY_DATASET, ds)["location"] is None
+    (user / ds.file).write_bytes(b"x")
+    assert catalogue.entry(TINY_DATASET, ds)["location"] == "user"
+    (shared / ds.file).write_bytes(b"x")
+    assert catalogue.entry(TINY_DATASET, ds)["location"] == "shared"
+
+
 def test_catalogue_downloaded_flag_tracks_the_file(tmp_path):
     em_database.set_data_dir(str(tmp_path), persist=False)
     ds = catalogue.resolve(TINY_DATASET)
+    assert ds is not None
     assert catalogue.entry(TINY_DATASET, ds)["downloaded"] is False
     (tmp_path / ds.file).write_bytes(b"x")  # pretend it is downloaded
     assert catalogue.entry(TINY_DATASET, ds)["downloaded"] is True
@@ -136,6 +154,7 @@ def test_command_update_routes_through_real_comm_handler(monkeypatch):
 
 def test_search_blob_includes_authors_and_affiliation():
     ds = catalogue.resolve("BilayerWS2")
+    assert ds is not None
     row = catalogue.entry("BilayerWS2", ds)
     assert "nick hagopian" in row["search"]  # author name
     assert "wisconsin" in row["search"]  # author affiliation
@@ -145,6 +164,7 @@ def test_search_blob_includes_authors_and_affiliation():
 def test_delete_removes_downloaded_file(tmp_path):
     em_database.set_data_dir(str(tmp_path), persist=False)
     ds = catalogue.resolve(TINY_DATASET)
+    assert ds is not None
     (tmp_path / ds.file).write_bytes(b"x")
     assert ds.filepath() is not None
     assert ds.delete() is True
@@ -181,6 +201,7 @@ def test_dataset_card_is_populated_and_routes(monkeypatch):
     from em_database.widget import card
 
     ds = catalogue.resolve(TINY_DATASET)
+    assert ds is not None
     widget = card(ds)
     assert widget.info["name"] == TINY_DATASET
     assert widget.info["technique"] == "STEM"
@@ -193,8 +214,10 @@ def test_dataset_card_is_populated_and_routes(monkeypatch):
 def test_dataset_display_is_a_widget_card():
     pytest.importorskip("anywidget")
     ds = catalogue.resolve(TINY_DATASET)
+    assert ds is not None
     bundle = ds._repr_mimebundle_()
     mimes = bundle[0] if isinstance(bundle, tuple) else bundle
+    assert mimes is not None
     assert "application/vnd.jupyter.widget-view+json" in mimes
 
 
@@ -206,7 +229,9 @@ def test_dataset_display_falls_back_without_anywidget(monkeypatch):
 
     monkeypatch.setattr(widget_mod, "card", _boom)
     ds = catalogue.resolve(TINY_DATASET)
+    assert ds is not None
     bundle = ds._repr_mimebundle_()
+    assert bundle is not None
     assert "text/plain" in bundle
 
 
@@ -216,15 +241,15 @@ def test_settings_widget_edits_and_persists(tmp_path):
     from em_database.widget import settings_widget
 
     widget = settings_widget()
-    assert widget.data_dir == em_database.get_data_dir()
+    assert widget.data_dir == str(em_database.get_data_dir())
 
     widget._command = {"action": "save", "data_dir": str(tmp_path / "d"), "nonce": 1}
-    assert em_database.get_data_dir() == str(tmp_path / "d")
+    assert em_database.get_data_dir() == tmp_path / "d"
     assert config._read_file()["data_dir"] == str(tmp_path / "d")  # persisted
     assert widget.data_dir == str(tmp_path / "d")
 
     widget._command = {"action": "session", "data_dir": str(tmp_path / "s"), "nonce": 2}
-    assert em_database.get_data_dir() == str(tmp_path / "s")
+    assert em_database.get_data_dir() == tmp_path / "s"
     assert config._read_file()["data_dir"] == str(tmp_path / "d")  # NOT persisted
 
     widget._command = {"action": "reset", "nonce": 3}
@@ -235,6 +260,7 @@ def test_settings_display_is_a_widget():
     pytest.importorskip("anywidget")
     bundle = em_database.settings._repr_mimebundle_()
     mimes = bundle[0] if isinstance(bundle, tuple) else bundle
+    assert mimes is not None
     assert "application/vnd.jupyter.widget-view+json" in mimes
 
 
@@ -293,4 +319,5 @@ def test_widget_download_end_to_end(tmp_path):
     assert future is not None
     future.result(timeout=120)  # block until the background download finishes
     ds = catalogue.resolve(TINY_DATASET)
+    assert ds is not None
     assert (tmp_path / ds.file).exists()
