@@ -69,9 +69,10 @@ pythonVersion = "3.12"
 # `slow` tests pull down the large datasets. They are deselected by default so
 # CI checks that every source URL resolves without moving hundreds of megabytes
 # on each of the six matrix legs. Run them with `pytest -m slow`.
-addopts = "-m 'not slow'"
+addopts = "-m 'not slow and not network'"
 markers = [
     "slow: downloads a large dataset; deselected by default",
+    "network: asks every source server whether it still has the file; run on a schedule",
 ]
 
 [build-system]

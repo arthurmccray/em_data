@@ -16,6 +16,7 @@ from __future__ import annotations
 import itertools
 import threading
 import time
+import warnings
 from pathlib import Path
 
 from em_database import catalogue as _catalogue
@@ -208,8 +209,8 @@ def _make_browser_class():
             if ds is not None:
                 try:
                     ds.delete()
-                except Exception:
-                    pass
+                except OSError as error:  # read-only dir, permissions, a vanished file
+                    warnings.warn(f"could not delete {name}: {error}", stacklevel=2)
                 self.refresh()
 
         # -- downloads ------------------------------------------------------

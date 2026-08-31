@@ -19,12 +19,15 @@ from pathlib import Path
 import pytest
 
 import em_database.data as data
+from em_database import catalogue
 from em_database.data import MgONanoCrystals, NiEBSDLarge
 from em_database.downloadable_dataset import (
     _PENDING,
     DatasetPath,
     DownloadableDataset,
+    _get_executor,
     _pending_key,
+    _shutdown_executor,
     _TqdmProgress,
 )
 
@@ -53,12 +56,16 @@ def _head(url, timeout=60):
     return urllib.request.urlopen(request, timeout=timeout)
 
 
+@pytest.mark.network
 @pytest.mark.parametrize("name", ALL_DATASETS)
 def test_source_url_resolves(name):
     """Every dataset's source URL must still exist.
 
     This is what actually breaks over time - a Zenodo record superseded, a
     GitHub ref rewritten - and it is invisible until someone tries to download.
+    Deselected by default: it is 20 HEAD requests, and running it on every leg
+    of the push matrix meant 120 of them per push. The weekly check_sources
+    workflow runs it instead.
     """
     dataset = getattr(data, name)()
     url = f"{dataset.source}/{dataset.file}"
@@ -310,3 +317,41 @@ def test_progressbar_true_is_swapped_for_our_own_bar(tmp_path, monkeypatch):
 
     assert isinstance(seen["downloader"].progressbar, _TqdmProgress)
     assert seen["downloader"].progressbar is not True
+
+
+def test_shutdown_cancels_queued_downloads():
+    """The pool's threads are non-daemon, so anything still queued at exit would
+    hold the interpreter open. Queued work is cancelled; started work is not."""
+    executor = _get_executor()
+    started = threading.Event()
+    release = threading.Event()
+
+    def block():
+        started.set()
+        release.wait(timeout=5)
+
+    running = [executor.submit(block) for _ in range(4)]  # fill every worker
+    queued = [executor.submit(block) for _ in range(8)]
+    started.wait(timeout=5)
+    try:
+        _shutdown_executor()
+        assert any(f.cancelled() for f in queued)
+        assert not any(f.cancelled() for f in running)
+    finally:
+        release.set()
+
+
+def test_a_malformed_entry_warns_instead_of_vanishing(monkeypatch):
+    """catalogue.datasets() used to swallow every exception, so a bad dataset
+    just disappeared from the browser with nothing said."""
+    broken = type(
+        "BrokenDataset",
+        (DownloadableDataset,),
+        {"_spec": {"description": "d", "source": "s"}, "_metadata": None},  # no 'file'
+    )
+    monkeypatch.setattr(data, "BrokenDataset", broken, raising=False)
+    monkeypatch.setattr(data, "__all__", [*data.__all__, "BrokenDataset"])
+
+    with pytest.warns(UserWarning, match="BrokenDataset"):
+        found = dict(catalogue.datasets())
+    assert "BrokenDataset" not in found  # skipped, but not silently

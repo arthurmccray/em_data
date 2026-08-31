@@ -11,6 +11,7 @@ is a single ``Path.exists`` per dataset).
 from __future__ import annotations
 
 import inspect
+import warnings
 from pathlib import Path
 
 from em_database.downloadable_dataset import DownloadableDataset
@@ -42,8 +43,11 @@ def datasets() -> list[tuple[str, DownloadableDataset]]:
             continue
         try:
             out.append((name, obj()))
-        except Exception:
-            continue
+        except TypeError as error:
+            # from_spec rejects a malformed entry. em_database.data validates at
+            # import so this should be unreachable, but a dataset silently
+            # missing from the browser is the wrong way to find out otherwise.
+            warnings.warn(f"skipping dataset {name!r}: {error}", stacklevel=2)
     return sorted(out, key=lambda kv: kv[0].lower())
 
 

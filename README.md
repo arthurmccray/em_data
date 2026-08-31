@@ -29,11 +29,37 @@ s = hs.load(path, lazy=True)
 ```
 
 By default the download runs on a background thread so a notebook cell returns
-immediately.  The handle it returns *is* the file path, so you can hand it straight
-to a loader as above — it only blocks at the moment the file is actually opened.
-Call `path.done()` to check progress without blocking, or `path.result()` to wait
-explicitly.  Pass `download(background=False)` to block and get the path as a plain
-string instead.
+immediately.  The handle it returns *is* the file path — a `pathlib.Path` subclass
+pointing at the file's final location — so you can hand it straight to a loader as
+above; it only blocks at the moment the file is actually opened.  Read `path.done`
+to check progress without blocking, or call `path.result()` to wait explicitly.
+`download(background=False)` blocks instead, and returns the same type.
+
+Any path pointing at the same file waits, however it was built, so a derived path
+(`handle.parent / handle.name`, `handle.with_suffix(...)`) behaves too.  The
+exceptions are `str(handle)` and `Path(handle)`: both hand back an ordinary value
+with no download attached, so `hs.load(str(handle))` will *not* wait.  Keeping
+`str()` non-blocking is deliberate — `repr()` needs it — so pass the handle itself.
+
+## Finding a dataset
+
+`search()` is the browser widget's search box, callable from Python; `filter()`
+matches named fields.  Both return dataset objects, so a result can be downloaded
+directly.
+
+```python
+import em_database
+
+em_database.datasets()                                     # everything
+em_database.search("amorphous")                            # any field
+em_database.search("jeol eels")                            # all terms, any field
+em_database.filter(technique="4D-STEM", tags="Strain")     # exact, case-insensitive
+em_database.filter(microscope_vendor=["JEOL", "Hitachi"])  # a list means any of
+em_database.filter(downloaded=True)                        # what is already here
+```
+
+An unknown field raises rather than being ignored, so a typo cannot quietly return
+the whole index.
 
 ## Settings
 

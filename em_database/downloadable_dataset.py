@@ -1,6 +1,8 @@
+import atexit
 import os
 import sys
 import threading
+import warnings
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, ClassVar, Protocol
@@ -44,7 +46,26 @@ def _get_executor() -> ThreadPoolExecutor:
                     max_workers=4,
                     thread_name_prefix="em_database_download",
                 )
+                atexit.register(_shutdown_executor)
     return _executor
+
+
+def _shutdown_executor() -> None:
+    """Drop queued downloads on the way out of the interpreter.
+
+    The pool's threads are non-daemon, so Python joins them at exit: queue up
+    several large datasets and the process hangs on the last one long after you
+    asked it to stop, with Ctrl-C going to the main thread and being ignored.
+    Cancelling clears everything not yet started.
+
+    A transfer already streaming still runs to completion - there is no way to
+    interrupt pooch mid-read from here - so this shortens the wait rather than
+    removing it. The widget's toast has a cancel button for that case.
+    """
+    global _executor
+    executor, _executor = _executor, None
+    if executor is not None:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 # Subclass the *concrete* Path for this OS (WindowsPath / PosixPath) so that
@@ -234,7 +255,10 @@ class DownloadableDataset:
         return self.metadata.size
 
     def __repr__(self):
-        return f"<{self.__class__} url={self.source}/{self.file} size={self.size}>"
+        # __class__ rather than its __name__ nested one set of angle brackets
+        # inside another, which a list of results made unreadable.
+        headline = " · ".join(p for p in (self.file, self.metadata.technique, self.size) if p)
+        return f"<{type(self).__name__} {headline}>"
 
     def _repr_mimebundle_(self, **kwargs):
         """Rich display in Jupyter: an interactive card with download/metadata.
@@ -245,7 +269,13 @@ class DownloadableDataset:
             from em_database.widget import card
 
             widget = card(self)
-        except Exception:
+        except ImportError:
+            return {"text/plain": repr(self)}  # anywidget not installed
+        except Exception as error:
+            # Still fall back - a repr that raises is worse than a plain one -
+            # but say so, rather than making a widget bug look like a missing
+            # optional dependency.
+            warnings.warn(f"falling back to the plain repr: {error}", stacklevel=2)
             return {"text/plain": repr(self)}
         return widget._repr_mimebundle_(**kwargs)
 
