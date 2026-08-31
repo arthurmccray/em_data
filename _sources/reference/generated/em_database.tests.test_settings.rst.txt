@@ -1,0 +1,19 @@
+em\_database.tests.test\_settings
+=================================
+
+.. automodule:: em_database.tests.test_settings
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      test_defaults_when_nothing_configured
+      test_generic_setting_roundtrips
+      test_legacy_env_var_still_seeds
+      test_live_object_is_immediate_like_rcparams
+      test_reset_clears_the_saved_choice
+      test_saving_other_settings_keeps_the_default_dynamic
+      test_set_data_dir_persists_across_sessions
+      test_set_data_dir_session_only_is_not_persisted
+   

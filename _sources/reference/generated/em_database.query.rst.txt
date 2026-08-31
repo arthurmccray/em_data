@@ -1,0 +1,20 @@
+em\_database.query
+==================
+
+.. automodule:: em_database.query
+
+   
+   .. rubric:: Module Attributes
+
+   .. autosummary::
+   
+      FILTER_FIELDS
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      filter
+      list_datasets
+      search
+   

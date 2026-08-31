@@ -1,0 +1,20 @@
+em\_database.tests
+==================
+
+.. automodule:: em_database.tests
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   conftest
+   test_directory
+   test_load_data
+   test_metadata
+   test_query
+   test_settings
+   test_shared_data
+   test_widget

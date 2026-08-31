@@ -1,0 +1,23 @@
+em\_database.metadata
+=====================
+
+.. automodule:: em_database.metadata
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      check_vendor
+      dataset_files
+      format_size
+      load_schema
+      load_vendors
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Author
+      DatasetMetadata
+   
